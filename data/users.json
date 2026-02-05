@@ -1,0 +1,18 @@
+{
+  "demo": {
+    "password": {
+      "salt": "mu6xtk6R0a2+FiWYFc5dGA==",
+      "iterations": 260000,
+      "hash": "vDiFNs/U0RYG6sPrp27VevsrjUxvurZVoDeGRoJsHJw="
+    },
+    "api_key": "cs_demo_key_001"
+  },
+  "admin": {
+    "password": {
+      "salt": "epxB52ZYMETmeLJDCXFGJA==",
+      "iterations": 260000,
+      "hash": "VTI1lDlOgzaY8cqzZlpIFh7Mautmv85rewdKdWAMR7A="
+    },
+    "api_key": "cs_admin_key_002"
+  }
+}

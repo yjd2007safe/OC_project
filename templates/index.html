@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CalendarSecretary 日程管理</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>CalendarSecretary</h1>
+      <p>轻松管理每日行程，支持 Web 登录与 API 调用。</p>
+    </header>
+
+    <section id="login-section" class="card">
+      <h2>登录</h2>
+      <form id="login-form">
+        <label>
+          用户名
+          <input type="text" name="username" required />
+        </label>
+        <label>
+          密码
+          <input type="password" name="password" required />
+        </label>
+        <button type="submit">登录</button>
+        <p class="helper" id="login-message"></p>
+      </form>
+      <div class="hint">
+        <strong>示例账号：</strong>
+        <p>demo / demo123</p>
+        <p>admin / admin123</p>
+      </div>
+    </section>
+
+    <section id="app-section" class="card hidden">
+      <div class="toolbar">
+        <div>
+          <h2>我的日程</h2>
+          <p id="welcome"></p>
+        </div>
+        <button id="logout-button" class="secondary">退出</button>
+      </div>
+
+      <div class="grid">
+        <form id="schedule-form" class="panel">
+          <h3 id="form-title">新增日程</h3>
+          <input type="hidden" name="id" />
+          <label>
+            标题
+            <input type="text" name="title" required />
+          </label>
+          <label>
+            时间
+            <input type="datetime-local" name="time" required />
+          </label>
+          <label>
+            地点
+            <input type="text" name="location" required />
+          </label>
+          <label>
+            描述
+            <textarea name="description" rows="4" required></textarea>
+          </label>
+          <div class="actions">
+            <button type="submit">保存</button>
+            <button type="button" id="reset-button" class="secondary">清空</button>
+          </div>
+          <p class="helper" id="form-message"></p>
+        </form>
+
+        <div class="panel">
+          <h3>日程列表</h3>
+          <ul id="schedule-list" class="schedule-list"></ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
