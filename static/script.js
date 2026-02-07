@@ -10,6 +10,7 @@ const resetButton = document.getElementById("reset-button");
 const formMessage = document.getElementById("form-message");
 const welcome = document.getElementById("welcome");
 const logoutButton = document.getElementById("logout-button");
+const adminLink = document.getElementById("admin-link");
 const formTitle = document.getElementById("form-title");
 const recurrenceEndTypeWrap = document.getElementById("recurrence-end-type-wrap");
 const recurrenceUntilWrap = document.getElementById("recurrence-until-wrap");
@@ -194,6 +195,7 @@ loginForm.addEventListener("submit", async (event) => {
     loginSection.classList.add("hidden");
     appSection.classList.remove("hidden");
     welcome.textContent = `欢迎，${data.username}`;
+    adminLink.classList.toggle("hidden", !data.is_admin);
     loginForm.reset();
     await loadSchedules();
   } catch (error) {
@@ -268,7 +270,12 @@ logoutButton.addEventListener("click", async () => {
   await request("/logout", { method: "POST" });
   appSection.classList.add("hidden");
   loginSection.classList.remove("hidden");
+  adminLink.classList.add("hidden");
   setEditing();
+});
+
+adminLink.addEventListener("click", () => {
+  window.location.href = "/admin";
 });
 
 const initialize = async () => {
@@ -279,6 +286,7 @@ const initialize = async () => {
       loginSection.classList.add("hidden");
       appSection.classList.remove("hidden");
       welcome.textContent = `欢迎，${data.username}`;
+    adminLink.classList.toggle("hidden", !data.is_admin);
       await loadSchedules();
     }
   } catch (error) {

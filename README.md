@@ -10,6 +10,7 @@ CalendarSecretary 是一个轻量级日程管理 Web 应用，支持 Web 登录�
 - 重复日程：支持 daily / weekly / monthly / yearly 频率
 - 重复结束方式：never / until / count
 - JSON 文件存储（每个用户独立日程文件）
+- 管理后台：用户管理、系统统计、账户启用/禁用、重置密码
 - 密码采用 PBKDF2-SHA256 哈希存储
 
 ## 项目结构
@@ -22,9 +23,11 @@ CalendarSecretary 是一个轻量级日程管理 Web 应用，支持 Web 登录�
 │   └── schedules
 ├── static
 │   ├── script.js
+│   ├── admin.js
 │   └── style.css
 ├── templates
-│   └── index.html
+│   ├── index.html
+│   └── admin.html
 └── README.md
 ```
 
@@ -121,3 +124,46 @@ curl -X DELETE http://localhost:5000/api/events/1 \
 - 用户信息存储在 `data/users.json`。
 - 日程数据存储在 `data/schedules/<username>.json`。
 - 为兼容旧客户端，`/api/schedules` 仍可用，并与 `/api/events` 共享逻辑。
+
+
+## 管理员功能
+
+- 管理员用户名固定为 `admin`，访问 `/admin` 时会校验管理员身份，非管理员自动重定向到首页。
+- 所有 `/api/admin/*` 接口均要求管理员会话或管理员 API Key。
+
+### 管理接口
+
+#### 获取用户列表
+
+```bash
+curl -H "X-API-Key: cs_admin_key_002" http://localhost:5000/api/admin/users
+```
+
+#### 删除用户
+
+```bash
+curl -X DELETE -H "X-API-Key: cs_admin_key_002" \
+  http://localhost:5000/api/admin/users/testuser
+```
+
+#### 重置用户密码
+
+```bash
+curl -X POST -H "X-API-Key: cs_admin_key_002" \
+  -H "Content-Type: application/json" \
+  -d '{"new_password":"NewPass123"}' \
+  http://localhost:5000/api/admin/users/testuser/reset-password
+```
+
+#### 启用/禁用用户
+
+```bash
+curl -X POST -H "X-API-Key: cs_admin_key_002" \
+  http://localhost:5000/api/admin/users/testuser/toggle
+```
+
+#### 获取系统统计
+
+```bash
+curl -H "X-API-Key: cs_admin_key_002" http://localhost:5000/api/admin/stats
+```
