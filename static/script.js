@@ -32,7 +32,9 @@ const request = async (url, options = {}) => {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = data.message || "请求失败";
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
   return data;
 };
@@ -76,6 +78,7 @@ const setEditing = (item = null) => {
   scheduleForm.id.value = item ? item.id : "";
   scheduleForm.title.value = item ? item.title : "";
   scheduleForm.time.value = item ? item.time : "";
+  scheduleForm.end_time.value = item ? item.end_time : "";
   scheduleForm.location.value = item ? item.location : "";
   scheduleForm.description.value = item ? item.description : "";
 
@@ -135,7 +138,7 @@ const renderSchedules = () => {
     title.textContent = item.title;
 
     const time = document.createElement("p");
-    time.innerHTML = `<strong>时间：</strong>${item.time}`;
+    time.innerHTML = `<strong>时间：</strong>${item.time} - ${item.end_time || ""}`;
 
     const location = document.createElement("p");
     location.innerHTML = `<strong>地点：</strong>${item.location}`;
@@ -228,6 +231,7 @@ scheduleForm.addEventListener("submit", async (event) => {
   const payload = {
     title: scheduleForm.title.value.trim(),
     time: scheduleForm.time.value,
+    end_time: scheduleForm.end_time.value,
     location: scheduleForm.location.value.trim(),
     description: scheduleForm.description.value.trim(),
     recurrence: buildRecurrencePayload(),
@@ -254,6 +258,10 @@ scheduleForm.addEventListener("submit", async (event) => {
     setEditing();
     renderSchedules();
   } catch (error) {
+    if (error.status === 409) {
+      setMessage(formMessage, `⚠️ ${error.message}`, true);
+      return;
+    }
     setMessage(formMessage, error.message, true);
   }
 });

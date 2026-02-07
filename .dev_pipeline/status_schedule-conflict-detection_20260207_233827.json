@@ -1,0 +1,15 @@
+﻿{
+    "start_time":  "2026-02-07T23:38:27",
+    "step_name":  "Polling",
+    "log_file":  ".\\.dev_pipeline\\log_schedule-conflict-detection_20260207_233827.log",
+    "status_file":  ".\\.dev_pipeline\\status_schedule-conflict-detection_20260207_233827.json",
+    "task_id":  "task_e_69875c7e31d8832a9b91caa74fcda839",
+    "last_update":  "2026-02-07T23:38:48",
+    "status":  "POLLING",
+    "task_name":  "schedule-conflict-detection",
+    "step":  2,
+    "progress":  25,
+    "project_dir":  ".",
+    "message":  "Check 1, status: pending",
+    "env_id":  "6984850448f8819183b0e500fd240597"
+}

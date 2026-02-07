@@ -247,6 +247,55 @@ class TestEventsAPI:
         assert data["recurrence"]["frequency"] == "weekly"
         assert data["recurrence"]["count"] == 4
     
+
+    def test_create_event_conflict(self, auth_client):
+        """测试创建冲突日程"""
+        first = auth_client.post("/api/events", json={
+            "title": "已有会议",
+            "time": "2025-02-10T10:00",
+            "end_time": "2025-02-10T11:00",
+            "location": "会议室A",
+            "description": "冲突检测"
+        })
+        assert first.status_code == 201
+
+        conflict = auth_client.post("/api/events", json={
+            "title": "冲突会议",
+            "time": "2025-02-10T10:30",
+            "end_time": "2025-02-10T11:30",
+            "location": "会议室B",
+            "description": "应该失败"
+        })
+        assert conflict.status_code == 409
+        data = conflict.get_json()
+        assert "Time conflict" in data["message"]
+
+    def test_update_event_conflict(self, auth_client):
+        """测试更新日程冲突"""
+        first = auth_client.post("/api/events", json={
+            "title": "会议1",
+            "time": "2025-02-10T10:00",
+            "end_time": "2025-02-10T11:00",
+            "location": "A",
+            "description": "D1"
+        })
+        second = auth_client.post("/api/events", json={
+            "title": "会议2",
+            "time": "2025-02-10T12:00",
+            "end_time": "2025-02-10T13:00",
+            "location": "B",
+            "description": "D2"
+        })
+        second_id = second.get_json()["id"]
+
+        response = auth_client.put(f"/api/events/{second_id}", json={
+            "time": "2025-02-10T10:30",
+            "end_time": "2025-02-10T11:30"
+        })
+        assert response.status_code == 409
+        data = response.get_json()
+        assert "Time conflict" in data["message"]
+
     def test_list_events(self, auth_client):
         """测试获取日程列表"""
         # 先创建几个日程
