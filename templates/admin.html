@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CalendarSecretary 管理后台</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>管理后台</h1>
+      <p>用户管理、系统统计与状态监控。</p>
+    </header>
+
+    <section class="card">
+      <div class="toolbar">
+        <div>
+          <h2>系统概览</h2>
+          <p id="admin-welcome"></p>
+        </div>
+        <div class="actions">
+          <button id="refresh-stats" class="secondary">刷新数据</button>
+          <button id="back-home" class="secondary">返回首页</button>
+          <button id="admin-logout">退出登录</button>
+        </div>
+      </div>
+
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><span>总用户数</span><strong id="stat-total-users">0</strong></div>
+        <div class="stat-card"><span>总日程数</span><strong id="stat-total-events">0</strong></div>
+        <div class="stat-card"><span>今日新增用户</span><strong id="stat-today-users">0</strong></div>
+        <div class="stat-card"><span>今日新增日程</span><strong id="stat-today-events">0</strong></div>
+        <div class="stat-card"><span>系统状态</span><strong id="stat-system-status">unknown</strong></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:16px;">
+      <div class="toolbar">
+        <h2>用户管理</h2>
+        <input id="user-search" type="text" placeholder="按用户名搜索" />
+      </div>
+      <p class="helper" id="admin-message"></p>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>用户名</th>
+              <th>角色</th>
+              <th>状态</th>
+              <th>日程数</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="user-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/admin.js"></script>
+</body>
+</html>

@@ -17,9 +17,11 @@ from flask import (
     Flask,
     abort,
     jsonify,
+    redirect,
     render_template,
     request,
     session,
+    url_for,
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -45,6 +47,8 @@ class User:
     password_salt: bytes
     password_hash: bytes
     iterations: int
+    enabled: bool = True
+    created_at: str = ""
 
 
 def _load_users() -> Dict[str, User]:
@@ -61,6 +65,8 @@ def _load_users() -> Dict[str, User]:
             password_salt=base64.b64decode(password["salt"]),
             password_hash=base64.b64decode(password["hash"]),
             iterations=int(password.get("iterations", PASSWORD_ITERATIONS)),
+            enabled=bool(payload.get("enabled", True)),
+            created_at=payload.get("created_at", ""),
         )
     return users
 
@@ -76,6 +82,8 @@ def _save_users(users: Dict[str, User]) -> None:
                 "hash": base64.b64encode(user.password_hash).decode("utf-8"),
             },
             "api_key": user.api_key,
+            "enabled": user.enabled,
+            "created_at": user.created_at,
         }
     with open(USERS_FILE, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
@@ -154,6 +162,27 @@ def _current_username() -> Optional[str]:
     if api_key:
         return _get_user_from_api_key(api_key)
     return None
+
+
+def _is_admin(username: str) -> bool:
+    return username == "admin"
+
+
+def _parse_iso_datetime(value: str) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _event_count_for_user(username: str) -> int:
+    return len(_load_schedule(username).get("items", []))
+
+
+def _iso_now() -> str:
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def _parse_event_time(value: str) -> datetime:
@@ -270,6 +299,27 @@ def require_auth(func):
         username = _current_username()
         if not username:
             abort(401, description="Authentication required")
+        users = _load_users()
+        user = users.get(username)
+        if not user or not user.enabled:
+            abort(403, description="Account is disabled")
+        return func(username, *args, **kwargs)
+
+    return wrapper
+
+
+def require_admin(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        username = _current_username()
+        if not username:
+            abort(401, description="Authentication required")
+        users = _load_users()
+        user = users.get(username)
+        if not user or not user.enabled:
+            abort(403, description="Account is disabled")
+        if not _is_admin(username):
+            abort(403, description="Admin access required")
         return func(username, *args, **kwargs)
 
     return wrapper
@@ -289,8 +339,10 @@ def login():
     user = users.get(username)
     if not user or not _verify_password(user, password):
         return jsonify({"message": "Invalid username or password"}), 401
+    if not user.enabled:
+        return jsonify({"message": "Account is disabled"}), 403
     session["username"] = username
-    return jsonify({"message": "Login successful", "username": username})
+    return jsonify({"message": "Login successful", "username": username, "is_admin": _is_admin(username)})
 
 
 @app.route("/api/register", methods=["POST"])
@@ -316,6 +368,8 @@ def register():
         password_salt=salt,
         password_hash=password_hash,
         iterations=PASSWORD_ITERATIONS,
+        enabled=True,
+        created_at=_iso_now(),
     )
     _save_users(users)
     _save_schedule(username, {"next_id": 1, "items": []})
@@ -331,7 +385,15 @@ def logout():
 @app.route("/session", methods=["GET"])
 def session_info():
     username = session.get("username")
-    return jsonify({"username": username})
+    return jsonify({"username": username, "is_admin": bool(username and _is_admin(username))})
+
+
+@app.route("/admin")
+def admin_page():
+    username = session.get("username")
+    if not username or not _is_admin(username):
+        return redirect(url_for("index"))
+    return render_template("admin.html")
 
 
 def _list_events(username: str):
@@ -371,6 +433,7 @@ def _create_event(username: str):
         "location": payload["location"],
         "description": payload["description"],
         "recurrence": recurrence,
+        "created_at": _iso_now(),
     }
     data["next_id"] += 1
     data["items"].append(item)
@@ -443,6 +506,110 @@ def profile(username: str):
     if not user:
         return jsonify({"message": "User not found"}), 404
     return jsonify({"username": user.username, "api_key": user.api_key})
+
+
+@app.route("/api/admin/users", methods=["GET"])
+@require_admin
+def admin_list_users(_admin_username: str):
+    users = _load_users()
+    result = []
+    for username, user in users.items():
+        result.append({
+            "username": username,
+            "api_key": user.api_key,
+            "enabled": user.enabled,
+            "created_at": user.created_at,
+            "is_admin": _is_admin(username),
+            "event_count": _event_count_for_user(username),
+        })
+    result.sort(key=lambda item: item["username"])
+    return jsonify({"items": result})
+
+
+@app.route("/api/admin/users/<username>", methods=["DELETE"])
+@require_admin
+def admin_delete_user(_admin_username: str, username: str):
+    users = _load_users()
+    if username not in users:
+        return jsonify({"message": "User not found"}), 404
+    if _is_admin(username):
+        return jsonify({"message": "Admin user cannot be deleted"}), 400
+
+    users.pop(username)
+    _save_users(users)
+    schedule_path = _get_schedule_path(username)
+    if os.path.exists(schedule_path):
+        os.remove(schedule_path)
+    return jsonify({"message": "User deleted"})
+
+
+@app.route("/api/admin/users/<username>/reset-password", methods=["POST"])
+@require_admin
+def admin_reset_password(_admin_username: str, username: str):
+    users = _load_users()
+    user = users.get(username)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    payload = request.get_json(force=True)
+    new_password = payload.get("new_password") or ""
+    if not _validate_password(new_password):
+        return jsonify({"message": "Password must be at least 8 chars and include letters and numbers"}), 400
+
+    salt, password_hash = _hash_password(new_password)
+    user.password_salt = salt
+    user.password_hash = password_hash
+    user.iterations = PASSWORD_ITERATIONS
+    _save_users(users)
+    return jsonify({"message": "Password reset successful"})
+
+
+@app.route("/api/admin/users/<username>/toggle", methods=["POST"])
+@require_admin
+def admin_toggle_user(_admin_username: str, username: str):
+    users = _load_users()
+    user = users.get(username)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+    if _is_admin(username):
+        return jsonify({"message": "Admin user cannot be disabled"}), 400
+
+    user.enabled = not user.enabled
+    _save_users(users)
+    return jsonify({"message": "User status updated", "enabled": user.enabled})
+
+
+@app.route("/api/admin/stats", methods=["GET"])
+@require_admin
+def admin_stats(_admin_username: str):
+    users = _load_users()
+    today = datetime.utcnow().date()
+
+    total_events = 0
+    today_events = 0
+    for username in users:
+        schedule = _load_schedule(username)
+        items = schedule.get("items", [])
+        total_events += len(items)
+        for item in items:
+            created_at = _parse_iso_datetime(item.get("created_at", ""))
+            if created_at and created_at.date() == today:
+                today_events += 1
+
+    today_users = 0
+    for user in users.values():
+        created_at = _parse_iso_datetime(user.created_at)
+        if created_at and created_at.date() == today:
+            today_users += 1
+
+    system_ok = os.path.exists(USERS_FILE) and os.path.isdir(SCHEDULE_DIR)
+    return jsonify({
+        "total_users": len(users),
+        "total_events": total_events,
+        "today_new_users": today_users,
+        "today_new_events": today_events,
+        "system_status": "ok" if system_ok else "degraded",
+    })
 
 
 @app.route("/health", methods=["GET"])
