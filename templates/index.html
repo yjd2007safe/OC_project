@@ -14,23 +14,43 @@
     </header>
 
     <section id="login-section" class="card">
-      <h2>登录</h2>
-      <form id="login-form">
-        <label>
-          用户名
-          <input type="text" name="username" required />
-        </label>
-        <label>
-          密码
-          <input type="password" name="password" required />
-        </label>
-        <button type="submit">登录</button>
-        <p class="helper" id="login-message"></p>
-      </form>
-      <div class="hint">
-        <strong>示例账号：</strong>
-        <p>demo / demo123</p>
-        <p>admin / admin123</p>
+      <div class="auth-grid">
+        <div>
+          <h2>登录</h2>
+          <form id="login-form">
+            <label>
+              用户名
+              <input type="text" name="username" required />
+            </label>
+            <label>
+              密码
+              <input type="password" name="password" required />
+            </label>
+            <button type="submit">登录</button>
+            <p class="helper" id="login-message"></p>
+          </form>
+          <div class="hint">
+            <strong>示例账号：</strong>
+            <p>demo / demo123</p>
+            <p>admin / admin123</p>
+          </div>
+        </div>
+
+        <div>
+          <h2>注册</h2>
+          <form id="register-form">
+            <label>
+              用户名（4-20位，字母/数字/下划线）
+              <input type="text" name="username" required />
+            </label>
+            <label>
+              密码（至少8位，包含字母和数字）
+              <input type="password" name="password" required />
+            </label>
+            <button type="submit">注册</button>
+            <p class="helper" id="register-message"></p>
+          </form>
+        </div>
       </div>
     </section>
 
@@ -63,6 +83,37 @@
             描述
             <textarea name="description" rows="4" required></textarea>
           </label>
+
+          <label>
+            重复频率
+            <select name="recurrence_frequency">
+              <option value="none">不重复</option>
+              <option value="daily">每天</option>
+              <option value="weekly">每周</option>
+              <option value="monthly">每月</option>
+              <option value="yearly">每年</option>
+            </select>
+          </label>
+
+          <label class="recurrence-end hidden" id="recurrence-end-type-wrap">
+            结束方式
+            <select name="recurrence_end_type" id="recurrence-end-type">
+              <option value="never">永不结束</option>
+              <option value="until">截止日期</option>
+              <option value="count">重复次数</option>
+            </select>
+          </label>
+
+          <label class="recurrence-end hidden" id="recurrence-until-wrap">
+            截止日期
+            <input type="date" name="recurrence_until" />
+          </label>
+
+          <label class="recurrence-end hidden" id="recurrence-count-wrap">
+            重复次数
+            <input type="number" name="recurrence_count" min="1" step="1" />
+          </label>
+
           <div class="actions">
             <button type="submit">保存</button>
             <button type="button" id="reset-button" class="secondary">清空</button>
