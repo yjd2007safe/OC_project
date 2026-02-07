@@ -192,6 +192,27 @@ def _parse_event_time(value: str) -> datetime:
         raise ValueError("time must be YYYY-MM-DDTHH:MM")
 
 
+def _resolve_event_range(start_value: str, end_value: Optional[str]) -> tuple[datetime, datetime]:
+    start_at = _parse_event_time(start_value)
+    if end_value:
+        end_at = _parse_event_time(end_value)
+    else:
+        end_at = start_at + timedelta(hours=1)
+    if end_at <= start_at:
+        raise ValueError("end_time must be later than time")
+    return start_at, end_at
+
+
+def _find_conflict(items: list[Dict[str, Any]], start_at: datetime, end_at: datetime, ignore_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    for entry in items:
+        if ignore_id is not None and entry.get("id") == ignore_id:
+            continue
+        existing_start, existing_end = _resolve_event_range(entry["time"], entry.get("end_time"))
+        if start_at < existing_end and end_at > existing_start:
+            return entry
+    return None
+
+
 def _parse_end_date(value: str) -> datetime:
     try:
         parsed = datetime.strptime(value, "%Y-%m-%d")
@@ -421,15 +442,20 @@ def _create_event(username: str):
         return jsonify({"message": "All fields are required"}), 400
 
     try:
-        _parse_event_time(payload["time"])
+        start_at, end_at = _resolve_event_range(payload["time"], payload.get("end_time"))
         recurrence = _normalize_recurrence(payload)
     except ValueError as exc:
         return jsonify({"message": str(exc)}), 400
+
+    conflict = _find_conflict(data["items"], start_at, end_at)
+    if conflict:
+        return jsonify({"message": f"Time conflict with event #{conflict['id']}: {conflict['title']}"}), 409
 
     item = {
         "id": data["next_id"],
         "title": payload["title"],
         "time": payload["time"],
+        "end_time": end_at.strftime("%Y-%m-%dT%H:%M"),
         "location": payload["location"],
         "description": payload["description"],
         "recurrence": recurrence,
@@ -468,13 +494,21 @@ def event_detail(username: str, item_id: int):
 
     payload = request.get_json(force=True)
     try:
-        if "time" in payload:
-            _parse_event_time(payload["time"])
+        candidate_time = payload.get("time", item["time"])
+        candidate_end_time = payload.get("end_time", item.get("end_time"))
+        start_at, end_at = _resolve_event_range(candidate_time, candidate_end_time)
+
+        conflict = _find_conflict(items, start_at, end_at, ignore_id=item_id)
+        if conflict:
+            return jsonify({"message": f"Time conflict with event #{conflict['id']}: {conflict['title']}"}), 409
+
         if "recurrence" in payload:
             item["recurrence"] = _normalize_recurrence(payload)
-        for field in ["title", "time", "location", "description"]:
+        for field in ["title", "time", "location", "description", "end_time"]:
             if field in payload:
                 item[field] = payload[field]
+        if "end_time" not in payload:
+            item["end_time"] = end_at.strftime("%Y-%m-%dT%H:%M")
     except ValueError as exc:
         return jsonify({"message": str(exc)}), 400
 

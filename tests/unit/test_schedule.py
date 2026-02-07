@@ -7,6 +7,8 @@ from app import (
     _normalize_recurrence,
     _advance_occurrence,
     _build_occurrences,
+    _resolve_event_range,
+    _find_conflict,
     ALLOWED_FREQUENCIES,
     ALLOWED_END_TYPES,
 )
@@ -274,3 +276,32 @@ class TestBuildOccurrences:
             assert occ["location"] == "会议室A"
             assert occ["description"] == "项目讨论"
             assert occ["source_id"] == 1
+
+
+class TestConflictDetection:
+    """冲突检测测试"""
+
+    def test_resolve_event_range_with_end_time(self):
+        """测试解析开始和结束时间"""
+        start_at, end_at = _resolve_event_range("2025-02-10T10:00", "2025-02-10T11:00")
+        assert start_at == datetime(2025, 2, 10, 10, 0)
+        assert end_at == datetime(2025, 2, 10, 11, 0)
+
+    def test_resolve_event_range_invalid_order(self):
+        """测试结束时间早于开始时间"""
+        with pytest.raises(ValueError) as exc_info:
+            _resolve_event_range("2025-02-10T11:00", "2025-02-10T10:00")
+        assert "end_time" in str(exc_info.value)
+
+    def test_find_conflict_overlap(self):
+        """测试检测重叠冲突"""
+        items = [{"id": 1, "title": "已有会议", "time": "2025-02-10T10:00", "end_time": "2025-02-10T11:00"}]
+        conflict = _find_conflict(items, datetime(2025, 2, 10, 10, 30), datetime(2025, 2, 10, 11, 30))
+        assert conflict is not None
+        assert conflict["id"] == 1
+
+    def test_find_conflict_ignore_self(self):
+        """测试更新时忽略自身"""
+        items = [{"id": 1, "title": "已有会议", "time": "2025-02-10T10:00", "end_time": "2025-02-10T11:00"}]
+        conflict = _find_conflict(items, datetime(2025, 2, 10, 10, 0), datetime(2025, 2, 10, 11, 0), ignore_id=1)
+        assert conflict is None
