@@ -1,0 +1,16 @@
+﻿{
+    "start_time":  "2026-02-08T20:46:14",
+    "step_name":  "Failed",
+    "log_file":  "C:\\Users\\Administrator\\OneDrive\\App\\CalendarSecretary\\.dev_pipeline\\log_smart-slot-finder_20260208_204614.log",
+    "status_file":  "C:\\Users\\Administrator\\OneDrive\\App\\CalendarSecretary\\.dev_pipeline\\status_smart-slot-finder_20260208_204614.json",
+    "task_id":  "",
+    "last_update":  "2026-02-08T20:46:16",
+    "status":  "FAILED",
+    "task_name":  "smart-slot-finder",
+    "step":  0,
+    "progress":  0,
+    "project_dir":  "C:\\Users\\Administrator\\OneDrive\\App\\CalendarSecretary",
+    "base_branch":  "main",
+    "message":  "Codex is not logged in or login check failed. Run: codex login. Details: 由于出现以下错误，无法运行此命令: %1 不是有效的 Win32 应用程序。。",
+    "env_id":  "env-6r2hIiEgIvMIq3w3UYk49Fz1"
+}

@@ -305,3 +305,158 @@ class TestConflictDetection:
         items = [{"id": 1, "title": "已有会议", "time": "2025-02-10T10:00", "end_time": "2025-02-10T11:00"}]
         conflict = _find_conflict(items, datetime(2025, 2, 10, 10, 0), datetime(2025, 2, 10, 11, 0), ignore_id=1)
         assert conflict is None
+
+
+class TestFindAvailableSlot:
+    """可用时段匹配测试"""
+
+    def test_find_first_slot_within_window(self):
+        """测试在偏好时间段内找到最早可用时段"""
+        items = [
+            {
+                "id": 1,
+                "title": "早会",
+                "time": "2025-02-10T09:00",
+                "end_time": "2025-02-10T10:00",
+                "recurrence": {"frequency": "none"},
+            },
+            {
+                "id": 2,
+                "title": "午会",
+                "time": "2025-02-10T11:00",
+                "end_time": "2025-02-10T12:00",
+                "recurrence": {"frequency": "none"},
+            },
+        ]
+        target_date = datetime(2025, 2, 10)
+        from app import _find_first_available_slot
+
+        slot = _find_first_available_slot(
+            items,
+            target_date,
+            required_minutes=30,
+            window_start=target_date.replace(hour=9, minute=0),
+            window_end=target_date.replace(hour=12, minute=0),
+        )
+        assert slot is not None
+        assert slot[0] == datetime(2025, 2, 10, 10, 0)
+        assert slot[1] == datetime(2025, 2, 10, 10, 30)
+
+    def test_find_slot_with_recurring_occurrence(self):
+        """测试会考虑重复日程展开"""
+        items = [
+            {
+                "id": 1,
+                "title": "每日站会",
+                "time": "2025-02-09T10:00",
+                "end_time": "2025-02-09T11:00",
+                "recurrence": {"frequency": "daily", "end_type": "count", "count": 3},
+            }
+        ]
+        target_date = datetime(2025, 2, 10)
+        from app import _find_first_available_slot
+
+        slot = _find_first_available_slot(
+            items,
+            target_date,
+            required_minutes=60,
+            window_start=target_date.replace(hour=9, minute=0),
+            window_end=target_date.replace(hour=12, minute=0),
+        )
+        assert slot is not None
+        assert slot[0] == datetime(2025, 2, 10, 9, 0)
+        assert slot[1] == datetime(2025, 2, 10, 10, 0)
+
+
+class TestFindAndBookEndpoint:
+    """智能时段匹配接口测试"""
+
+    def test_find_and_book_success(self):
+        """测试找到时段后自动创建日程"""
+        from app import app
+
+        app.config["TESTING"] = True
+        with app.test_client() as client:
+            register = client.post("/api/register", json={"username": "slotuser", "password": "Test1234"})
+            api_key = register.get_json()["api_key"]
+            headers = {"X-API-Key": api_key}
+
+            create = client.post(
+                "/api/events",
+                headers=headers,
+                json={
+                    "title": "占用",
+                    "time": "2025-02-10T09:00",
+                    "end_time": "2025-02-10T10:00",
+                    "location": "A",
+                    "description": "busy",
+                },
+            )
+            assert create.status_code == 201
+
+            response = client.post(
+                "/api/slots/find-and-book",
+                headers=headers,
+                json={
+                    "target_date": "2025-02-10",
+                    "duration_hours": 1.5,
+                    "title": "自动安排",
+                    "location": "B",
+                    "description": "自动创建",
+                    "preferred_start_time": "09:00",
+                    "preferred_end_time": "12:00",
+                },
+            )
+            assert response.status_code == 201
+            payload = response.get_json()
+            assert payload["item"]["time"] == "2025-02-10T10:00"
+            assert payload["item"]["end_time"] == "2025-02-10T11:30"
+
+    def test_find_and_book_no_slot(self):
+        """测试无可用时段时返回冲突"""
+        from app import app
+
+        app.config["TESTING"] = True
+        with app.test_client() as client:
+            register = client.post("/api/register", json={"username": "slotuser2", "password": "Test1234"})
+            api_key = register.get_json()["api_key"]
+            headers = {"X-API-Key": api_key}
+
+            client.post(
+                "/api/events",
+                headers=headers,
+                json={
+                    "title": "占用1",
+                    "time": "2025-02-10T09:00",
+                    "end_time": "2025-02-10T11:00",
+                    "location": "A",
+                    "description": "busy",
+                },
+            )
+            client.post(
+                "/api/events",
+                headers=headers,
+                json={
+                    "title": "占用2",
+                    "time": "2025-02-10T11:00",
+                    "end_time": "2025-02-10T12:00",
+                    "location": "A",
+                    "description": "busy",
+                },
+            )
+
+            response = client.post(
+                "/api/slots/find-and-book",
+                headers=headers,
+                json={
+                    "target_date": "2025-02-10",
+                    "duration_hours": 1,
+                    "title": "无法安排",
+                    "location": "B",
+                    "description": "no slot",
+                    "preferred_start_time": "09:00",
+                    "preferred_end_time": "12:00",
+                },
+            )
+            assert response.status_code == 409
+            assert "No available slot" in response.get_json()["message"]

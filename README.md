@@ -103,6 +103,26 @@ curl -X POST http://localhost:5000/api/events \
   }'
 ```
 
+
+### 智能匹配空闲时段并自动创建日程
+
+```bash
+curl -X POST http://localhost:5000/api/slots/find-and-book \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: cs_demo_key_001" \
+  -d '{
+    "target_date": "2025-02-10",
+    "duration_hours": 1.5,
+    "title": "客户沟通",
+    "location": "线上",
+    "description": "产品需求确认",
+    "preferred_start_time": "09:00",
+    "preferred_end_time": "18:00"
+  }'
+```
+
+> `duration_hours` 支持小数（例如 `1.5` 表示 1 小时 30 分钟）；`preferred_start_time` / `preferred_end_time` 可选，默认全天范围。
+
 ### 更新日程
 
 ```bash

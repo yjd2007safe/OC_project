@@ -203,6 +203,58 @@ def _resolve_event_range(start_value: str, end_value: Optional[str]) -> tuple[da
     return start_at, end_at
 
 
+def _parse_date(value: str) -> datetime:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        raise ValueError("target_date must be YYYY-MM-DD")
+
+
+def _parse_clock_time(value: str, field_name: str) -> tuple[int, int]:
+    try:
+        parsed = datetime.strptime(value, "%H:%M")
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be HH:MM")
+    return parsed.hour, parsed.minute
+
+
+def _find_first_available_slot(items: list[Dict[str, Any]], target_date: datetime, required_minutes: int, window_start: datetime, window_end: datetime) -> Optional[tuple[datetime, datetime]]:
+    query_start = target_date.replace(hour=0, minute=0)
+    query_end = target_date.replace(hour=23, minute=59)
+    occupied: list[tuple[datetime, datetime]] = []
+
+    for item in items:
+        start_at, end_at = _resolve_event_range(item["time"], item.get("end_time"))
+        duration = end_at - start_at
+        occurrences = _build_occurrences(item, query_start, query_end)
+        for occurrence in occurrences:
+            occurrence_start = _parse_event_time(occurrence["occurrence_time"])
+            occurrence_end = occurrence_start + duration
+            if occurrence_start < window_end and occurrence_end > window_start:
+                occupied.append((max(occurrence_start, window_start), min(occurrence_end, window_end)))
+
+    occupied.sort(key=lambda entry: entry[0])
+
+    merged: list[tuple[datetime, datetime]] = []
+    for start_at, end_at in occupied:
+        if not merged or start_at > merged[-1][1]:
+            merged.append((start_at, end_at))
+            continue
+        merged[-1] = (merged[-1][0], max(merged[-1][1], end_at))
+
+    cursor = window_start
+    required_delta = timedelta(minutes=required_minutes)
+    for start_at, end_at in merged:
+        if cursor + required_delta <= start_at:
+            return cursor, cursor + required_delta
+        if end_at > cursor:
+            cursor = end_at
+
+    if cursor + required_delta <= window_end:
+        return cursor, cursor + required_delta
+    return None
+
+
 def _find_conflict(items: list[Dict[str, Any]], start_at: datetime, end_at: datetime, ignore_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
     for entry in items:
         if ignore_id is not None and entry.get("id") == ignore_id:
@@ -530,6 +582,56 @@ def schedules(username: str):
 @require_auth
 def schedule_detail(username: str, item_id: int):
     return event_detail(username, item_id)
+
+
+@app.route("/api/slots/find-and-book", methods=["POST"])
+@require_auth
+def find_and_book_slot(username: str):
+    payload = request.get_json(force=True)
+    required = ["target_date", "duration_hours", "title", "location", "description"]
+    if not all(payload.get(field) for field in required):
+        return jsonify({"message": "target_date, duration_hours, title, location and description are required"}), 400
+
+    try:
+        target_date = _parse_date(payload.get("target_date"))
+        duration_hours = float(payload.get("duration_hours"))
+        if duration_hours <= 0:
+            raise ValueError("duration_hours must be greater than 0")
+        required_minutes = int(duration_hours * 60)
+        if required_minutes <= 0:
+            raise ValueError("duration_hours must be at least 1 minute")
+
+        preferred_start_raw = payload.get("preferred_start_time") or "00:00"
+        preferred_end_raw = payload.get("preferred_end_time") or "23:59"
+        start_hour, start_minute = _parse_clock_time(preferred_start_raw, "preferred_start_time")
+        end_hour, end_minute = _parse_clock_time(preferred_end_raw, "preferred_end_time")
+        window_start = target_date.replace(hour=start_hour, minute=start_minute)
+        window_end = target_date.replace(hour=end_hour, minute=end_minute)
+        if window_end <= window_start:
+            raise ValueError("preferred_end_time must be later than preferred_start_time")
+    except ValueError as exc:
+        return jsonify({"message": str(exc)}), 400
+
+    data = _load_schedule(username)
+    slot = _find_first_available_slot(data["items"], target_date, required_minutes, window_start, window_end)
+    if not slot:
+        return jsonify({"message": "No available slot found for the requested duration"}), 409
+
+    start_at, end_at = slot
+    item = {
+        "id": data["next_id"],
+        "title": payload["title"],
+        "time": start_at.strftime("%Y-%m-%dT%H:%M"),
+        "end_time": end_at.strftime("%Y-%m-%dT%H:%M"),
+        "location": payload["location"],
+        "description": payload["description"],
+        "recurrence": {"frequency": "none", "end_type": "never", "until": None, "count": None},
+        "created_at": _iso_now(),
+    }
+    data["next_id"] += 1
+    data["items"].append(item)
+    _save_schedule(username, data)
+    return jsonify({"message": "Booked available slot", "item": item}), 201
 
 
 @app.route("/api/profile", methods=["GET"])
