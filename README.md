@@ -9,6 +9,7 @@ CalendarSecretary 是一个轻量级日程管理 Web 应用，支持 Web 登录�
 - 日程管理：新增、查询、更新、删除
 - 重复日程：支持 daily / weekly / monthly / yearly 频率
 - 重复结束方式：never / until / count
+- 工作日/休息日提醒：支持日期类型查询与创建日程提醒
 - JSON 文件存储（每个用户独立日程文件）
 - 管理后台：用户管理、系统统计、账户启用/禁用、重置密码
 - 密码采用 PBKDF2-SHA256 哈希存储
@@ -103,6 +104,26 @@ curl -X POST http://localhost:5000/api/events \
   }'
 ```
 
+
+### 查询日期是否工作日
+
+```bash
+curl -H "X-API-Key: cs_demo_key_001" \
+  "http://localhost:5000/api/events/workday-check?date=2025-02-10"
+```
+
+返回示例：
+
+```json
+{
+  "date": "2025-02-10",
+  "is_workday": true,
+  "day_type": "workday",
+  "description": "工作日"
+}
+```
+
+> 当创建日程日期为周末休息日时，接口会在返回体中附加 `warning` 字段提醒：`{"type":"restday","message":"该日程安排在休息日"}`。
 
 ### 智能匹配空闲时段并自动创建日程
 

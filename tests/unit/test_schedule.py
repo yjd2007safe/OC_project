@@ -11,6 +11,8 @@ from app import (
     _find_conflict,
     ALLOWED_FREQUENCIES,
     ALLOWED_END_TYPES,
+    _check_day_type,
+    _parse_workday_date,
 )
 
 
@@ -276,6 +278,34 @@ class TestBuildOccurrences:
             assert occ["location"] == "会议室A"
             assert occ["description"] == "项目讨论"
             assert occ["source_id"] == 1
+
+
+class TestWorkdayHelpers:
+    """工作日判断工具函数测试"""
+
+    def test_parse_workday_date_success(self):
+        """测试工作日查询日期解析成功"""
+        parsed = _parse_workday_date("2025-02-10")
+        assert parsed == datetime(2025, 2, 10)
+
+    def test_parse_workday_date_invalid(self):
+        """测试工作日查询日期解析失败"""
+        with pytest.raises(ValueError) as exc_info:
+            _parse_workday_date("2025/02/10")
+        assert "date must be YYYY-MM-DD" in str(exc_info.value)
+
+    def test_check_day_type_workday(self):
+        """测试工作日判断"""
+        result = _check_day_type(datetime(2025, 2, 10))  # Monday
+        assert result["is_workday"] is True
+        assert result["day_type"] == "workday"
+
+    def test_check_day_type_restday(self):
+        """测试休息日判断"""
+        result = _check_day_type(datetime(2025, 2, 9))  # Sunday
+        assert result["is_workday"] is False
+        assert result["day_type"] == "restday"
+
 
 
 class TestConflictDetection:

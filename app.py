@@ -210,6 +210,27 @@ def _parse_date(value: str) -> datetime:
         raise ValueError("target_date must be YYYY-MM-DD")
 
 
+def _parse_workday_date(value: str) -> datetime:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        raise ValueError("date must be YYYY-MM-DD")
+
+
+def _check_day_type(target_date: datetime) -> Dict[str, Any]:
+    if target_date.weekday() < 5:
+        return {
+            "is_workday": True,
+            "day_type": "workday",
+            "description": "工作日",
+        }
+    return {
+        "is_workday": False,
+        "day_type": "restday",
+        "description": "周末休息日",
+    }
+
+
 def _parse_clock_time(value: str, field_name: str) -> tuple[int, int]:
     try:
         parsed = datetime.strptime(value, "%H:%M")
@@ -516,6 +537,13 @@ def _create_event(username: str):
     data["next_id"] += 1
     data["items"].append(item)
     _save_schedule(username, data)
+
+    day_info = _check_day_type(start_at)
+    if not day_info["is_workday"]:
+        item["warning"] = {
+            "type": day_info["day_type"],
+            "message": "该日程安排在休息日",
+        }
     return jsonify(item), 201
 
 
@@ -525,6 +553,23 @@ def events(username: str):
     if request.method == "GET":
         return _list_events(username)
     return _create_event(username)
+
+
+@app.route("/api/events/workday-check", methods=["GET"])
+@require_auth
+def workday_check(username: str):
+    del username
+    date_value = request.args.get("date")
+    if not date_value:
+        return jsonify({"message": "date query parameter is required"}), 400
+
+    try:
+        target_date = _parse_workday_date(date_value)
+    except ValueError as exc:
+        return jsonify({"message": str(exc)}), 400
+
+    day_info = _check_day_type(target_date)
+    return jsonify({"date": date_value, **day_info})
 
 
 @app.route("/api/events/<int:item_id>", methods=["GET", "PUT", "DELETE"])
