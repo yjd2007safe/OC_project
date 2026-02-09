@@ -105,25 +105,27 @@ curl -X POST http://localhost:5000/api/events \
 ```
 
 
-### 查询日期是否工作日
+### 查询日期时间工作状态
 
 ```bash
 curl -H "X-API-Key: cs_demo_key_001" \
-  "http://localhost:5000/api/events/workday-check?date=2025-02-10"
+  "http://localhost:5000/api/events/workday-check?datetime=2025-02-10T12:30"
 ```
 
 返回示例：
 
 ```json
 {
-  "date": "2025-02-10",
+  "datetime": "2025-02-10T12:30",
   "is_workday": true,
-  "day_type": "workday",
-  "description": "工作日"
+  "is_working_hours": false,
+  "work_period": null,
+  "day_type": "workday_lunch",
+  "description": "午休时间"
 }
 ```
 
-> 当创建日程日期为周末休息日时，接口会在返回体中附加 `warning` 字段提醒：`{"type":"restday","message":"该日程安排在休息日"}`。
+> 创建日程时，若时间位于午休（12:00-13:30）、工作日非工作时段（09:00前或18:00后）或周末，接口会在返回体中附加 `warning` 字段并给出对应提示。
 
 ### 智能匹配空闲时段并自动创建日程
 

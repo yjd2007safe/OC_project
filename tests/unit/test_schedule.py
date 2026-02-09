@@ -12,6 +12,7 @@ from app import (
     ALLOWED_FREQUENCIES,
     ALLOWED_END_TYPES,
     _check_day_type,
+    _check_working_hours,
     _parse_workday_date,
 )
 
@@ -281,7 +282,7 @@ class TestBuildOccurrences:
 
 
 class TestWorkdayHelpers:
-    """工作日判断工具函数测试"""
+    """工作日和工作时段判断工具函数测试"""
 
     def test_parse_workday_date_success(self):
         """测试工作日查询日期解析成功"""
@@ -294,18 +295,55 @@ class TestWorkdayHelpers:
             _parse_workday_date("2025/02/10")
         assert "date must be YYYY-MM-DD" in str(exc_info.value)
 
-    def test_check_day_type_workday(self):
-        """测试工作日判断"""
-        result = _check_day_type(datetime(2025, 2, 10))  # Monday
+    def test_check_working_hours_morning(self):
+        """测试上午工作时段"""
+        result = _check_working_hours(datetime(2025, 2, 10, 9, 0))
         assert result["is_workday"] is True
-        assert result["day_type"] == "workday"
+        assert result["is_working_hours"] is True
+        assert result["work_period"] == "morning"
+        assert result["day_type"] == "workday_working"
+        assert result["description"] == "工作日上午"
 
-    def test_check_day_type_restday(self):
-        """测试休息日判断"""
-        result = _check_day_type(datetime(2025, 2, 9))  # Sunday
+    def test_check_working_hours_lunch(self):
+        """测试午休时段"""
+        result = _check_working_hours(datetime(2025, 2, 10, 12, 30))
+        assert result["is_workday"] is True
+        assert result["is_working_hours"] is False
+        assert result["work_period"] is None
+        assert result["day_type"] == "workday_lunch"
+        assert result["description"] == "午休时间"
+
+    def test_check_working_hours_afternoon(self):
+        """测试下午工作时段"""
+        result = _check_working_hours(datetime(2025, 2, 10, 13, 30))
+        assert result["is_workday"] is True
+        assert result["is_working_hours"] is True
+        assert result["work_period"] == "afternoon"
+        assert result["day_type"] == "workday_working"
+        assert result["description"] == "工作日下午"
+
+    def test_check_working_hours_offhours(self):
+        """测试工作日非工作时段"""
+        result = _check_working_hours(datetime(2025, 2, 10, 8, 30))
+        assert result["is_workday"] is True
+        assert result["is_working_hours"] is False
+        assert result["work_period"] is None
+        assert result["day_type"] == "workday_offhours"
+        assert result["description"] == "工作日非工作时间"
+
+    def test_check_working_hours_restday(self):
+        """测试周末"""
+        result = _check_working_hours(datetime(2025, 2, 9, 10, 0))
         assert result["is_workday"] is False
+        assert result["is_working_hours"] is False
+        assert result["work_period"] is None
         assert result["day_type"] == "restday"
+        assert result["description"] == "周末"
 
+    def test_check_day_type_compatible(self):
+        """测试 _check_day_type 兼容返回结构"""
+        result = _check_day_type(datetime(2025, 2, 10, 10, 0))
+        assert result["day_type"] == "workday_working"
 
 
 class TestConflictDetection:

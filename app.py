@@ -217,18 +217,60 @@ def _parse_workday_date(value: str) -> datetime:
         raise ValueError("date must be YYYY-MM-DD")
 
 
-def _check_day_type(target_date: datetime) -> Dict[str, Any]:
-    if target_date.weekday() < 5:
+def _check_working_hours(target_datetime: datetime) -> Dict[str, Any]:
+    if target_datetime.weekday() >= 5:
+        return {
+            "is_workday": False,
+            "is_working_hours": False,
+            "work_period": None,
+            "day_type": "restday",
+            "description": "周末",
+        }
+
+    minute_of_day = target_datetime.hour * 60 + target_datetime.minute
+    morning_start = 9 * 60
+    morning_end = 12 * 60
+    afternoon_start = 13 * 60 + 30
+    afternoon_end = 18 * 60
+
+    if morning_start <= minute_of_day < morning_end:
         return {
             "is_workday": True,
-            "day_type": "workday",
-            "description": "工作日",
+            "is_working_hours": True,
+            "work_period": "morning",
+            "day_type": "workday_working",
+            "description": "工作日上午",
         }
+
+    if afternoon_start <= minute_of_day < afternoon_end:
+        return {
+            "is_workday": True,
+            "is_working_hours": True,
+            "work_period": "afternoon",
+            "day_type": "workday_working",
+            "description": "工作日下午",
+        }
+
+    if morning_end <= minute_of_day < afternoon_start:
+        return {
+            "is_workday": True,
+            "is_working_hours": False,
+            "work_period": None,
+            "day_type": "workday_lunch",
+            "description": "午休时间",
+        }
+
     return {
-        "is_workday": False,
-        "day_type": "restday",
-        "description": "周末休息日",
+        "is_workday": True,
+        "is_working_hours": False,
+        "work_period": None,
+        "day_type": "workday_offhours",
+        "description": "工作日非工作时间",
     }
+
+
+def _check_day_type(target_date: datetime) -> Dict[str, Any]:
+    return _check_working_hours(target_date)
 
 
 def _parse_clock_time(value: str, field_name: str) -> tuple[int, int]:
@@ -538,11 +580,21 @@ def _create_event(username: str):
     data["items"].append(item)
     _save_schedule(username, data)
 
-    day_info = _check_day_type(start_at)
-    if not day_info["is_workday"]:
+    day_info = _check_working_hours(start_at)
+    if day_info["day_type"] == "workday_lunch":
         item["warning"] = {
             "type": day_info["day_type"],
-            "message": "该日程安排在休息日",
+            "message": "该日程安排在午休时间（12:00-13:30）",
+        }
+    elif day_info["day_type"] == "workday_offhours":
+        item["warning"] = {
+            "type": day_info["day_type"],
+            "message": "该日程安排在工作日非工作时间（09:00前、12:00-13:30、18:00后）",
+        }
+    elif day_info["day_type"] == "restday":
+        item["warning"] = {
+            "type": day_info["day_type"],
+            "message": "该日程安排在周末",
         }
     return jsonify(item), 201
 
@@ -559,17 +611,23 @@ def events(username: str):
 @require_auth
 def workday_check(username: str):
     del username
+    datetime_value = request.args.get("datetime")
     date_value = request.args.get("date")
-    if not date_value:
-        return jsonify({"message": "date query parameter is required"}), 400
+    if not datetime_value and not date_value:
+        return jsonify({"message": "datetime query parameter is required"}), 400
 
     try:
-        target_date = _parse_workday_date(date_value)
+        if datetime_value:
+            target_datetime = _parse_event_time(datetime_value)
+            response_value = datetime_value
+        else:
+            target_datetime = _parse_workday_date(date_value)
+            response_value = date_value
     except ValueError as exc:
         return jsonify({"message": str(exc)}), 400
 
-    day_info = _check_day_type(target_date)
-    return jsonify({"date": date_value, **day_info})
+    day_info = _check_working_hours(target_datetime)
+    return jsonify({"datetime": response_value, **day_info})
 
 
 @app.route("/api/events/<int:item_id>", methods=["GET", "PUT", "DELETE"])
