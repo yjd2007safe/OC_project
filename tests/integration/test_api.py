@@ -296,8 +296,34 @@ class TestEventsAPI:
         data = response.get_json()
         assert "Time conflict" in data["message"]
 
+    def test_create_event_lunch_warning(self, auth_client):
+        """测试创建午休时段日程返回提醒"""
+        response = auth_client.post("/api/events", json={
+            "title": "午休会议",
+            "time": "2025-02-10T12:30",
+            "location": "会议室A",
+            "description": "午休安排"
+        })
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["warning"]["type"] == "workday_lunch"
+        assert "12:00-13:30" in data["warning"]["message"]
+
+    def test_create_event_workday_offhours_warning(self, auth_client):
+        """测试创建工作日非工作时段日程返回提醒"""
+        response = auth_client.post("/api/events", json={
+            "title": "清晨会议",
+            "time": "2025-02-10T08:00",
+            "location": "会议室A",
+            "description": "上班前安排"
+        })
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["warning"]["type"] == "workday_offhours"
+        assert "09:00前" in data["warning"]["message"]
+
     def test_create_event_restday_warning(self, auth_client):
-        """测试创建休息日日程返回提醒"""
+        """测试创建周末日程返回提醒"""
         response = auth_client.post("/api/events", json={
             "title": "周末会议",
             "time": "2025-02-09T10:00",
@@ -307,10 +333,10 @@ class TestEventsAPI:
         assert response.status_code == 201
         data = response.get_json()
         assert data["warning"]["type"] == "restday"
-        assert data["warning"]["message"] == "该日程安排在休息日"
+        assert data["warning"]["message"] == "该日程安排在周末"
 
-    def test_create_event_workday_without_warning(self, auth_client):
-        """测试创建工作日日程不返回提醒"""
+    def test_create_event_working_hours_without_warning(self, auth_client):
+        """测试创建工作时段日程不返回提醒"""
         response = auth_client.post("/api/events", json={
             "title": "周一会议",
             "time": "2025-02-10T10:00",
@@ -321,30 +347,59 @@ class TestEventsAPI:
         data = response.get_json()
         assert "warning" not in data
 
-    def test_workday_check_endpoint_workday(self, auth_client):
-        """测试工作日查询接口-工作日"""
-        response = auth_client.get("/api/events/workday-check?date=2025-02-10")
+    def test_workday_check_endpoint_morning(self, auth_client):
+        """测试工作日查询接口-上午工作时段"""
+        response = auth_client.get("/api/events/workday-check?datetime=2025-02-10T09:30")
         assert response.status_code == 200
         data = response.get_json()
-        assert data["date"] == "2025-02-10"
+        assert data["datetime"] == "2025-02-10T09:30"
         assert data["is_workday"] is True
-        assert data["day_type"] == "workday"
+        assert data["is_working_hours"] is True
+        assert data["work_period"] == "morning"
+        assert data["day_type"] == "workday_working"
+
+    def test_workday_check_endpoint_lunch(self, auth_client):
+        """测试工作日查询接口-午休时段"""
+        response = auth_client.get("/api/events/workday-check?datetime=2025-02-10T12:30")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["is_working_hours"] is False
+        assert data["work_period"] is None
+        assert data["day_type"] == "workday_lunch"
+
+    def test_workday_check_endpoint_afternoon(self, auth_client):
+        """测试工作日查询接口-下午工作时段"""
+        response = auth_client.get("/api/events/workday-check?datetime=2025-02-10T14:30")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["is_working_hours"] is True
+        assert data["work_period"] == "afternoon"
+        assert data["day_type"] == "workday_working"
+
+    def test_workday_check_endpoint_offhours(self, auth_client):
+        """测试工作日查询接口-非工作时段"""
+        response = auth_client.get("/api/events/workday-check?datetime=2025-02-10T08:30")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["is_working_hours"] is False
+        assert data["work_period"] is None
+        assert data["day_type"] == "workday_offhours"
 
     def test_workday_check_endpoint_restday(self, auth_client):
-        """测试工作日查询接口-休息日"""
-        response = auth_client.get("/api/events/workday-check?date=2025-02-09")
+        """测试工作日查询接口-周末"""
+        response = auth_client.get("/api/events/workday-check?datetime=2025-02-09T10:00")
         assert response.status_code == 200
         data = response.get_json()
-        assert data["date"] == "2025-02-09"
         assert data["is_workday"] is False
+        assert data["is_working_hours"] is False
         assert data["day_type"] == "restday"
 
-    def test_workday_check_endpoint_invalid_date(self, auth_client):
-        """测试工作日查询接口-日期格式错误"""
-        response = auth_client.get("/api/events/workday-check?date=2025/02/09")
+    def test_workday_check_endpoint_invalid_datetime(self, auth_client):
+        """测试工作日查询接口-日期时间格式错误"""
+        response = auth_client.get("/api/events/workday-check?datetime=2025/02/09 10:00")
         assert response.status_code == 400
         data = response.get_json()
-        assert "YYYY-MM-DD" in data["message"]
+        assert "YYYY-MM-DDTHH:MM" in data["message"]
 
 
     def test_list_events(self, auth_client):
