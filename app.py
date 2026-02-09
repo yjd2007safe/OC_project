@@ -217,14 +217,33 @@ def _parse_workday_date(value: str) -> datetime:
         raise ValueError("date must be YYYY-MM-DD")
 
 
+def _parse_workday_datetime(value: str) -> datetime:
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M")
+    except (TypeError, ValueError):
+        raise ValueError("datetime must be YYYY-MM-DDTHH:MM")
+
+
 def _check_day_type(target_date: datetime) -> Dict[str, Any]:
-    if target_date.weekday() < 5:
+    is_workday = target_date.weekday() < 5
+    is_working_hours = is_workday and (9 <= target_date.hour < 18)
+
+    if is_working_hours:
         return {
+            "is_working_hours": True,
             "is_workday": True,
             "day_type": "workday",
-            "description": "工作日",
+            "description": "工作时间",
+        }
+    if is_workday:
+        return {
+            "is_working_hours": False,
+            "is_workday": True,
+            "day_type": "offhours",
+            "description": "工作日非工作时间",
         }
     return {
+        "is_working_hours": False,
         "is_workday": False,
         "day_type": "restday",
         "description": "周末休息日",
@@ -539,10 +558,10 @@ def _create_event(username: str):
     _save_schedule(username, data)
 
     day_info = _check_day_type(start_at)
-    if not day_info["is_workday"]:
+    if not day_info["is_working_hours"]:
         item["warning"] = {
             "type": day_info["day_type"],
-            "message": "该日程安排在休息日",
+            "message": f"该日程安排在非工作时间（{day_info['description']}）",
         }
     return jsonify(item), 201
 
@@ -559,17 +578,27 @@ def events(username: str):
 @require_auth
 def workday_check(username: str):
     del username
+    datetime_value = request.args.get("datetime")
     date_value = request.args.get("date")
-    if not date_value:
-        return jsonify({"message": "date query parameter is required"}), 400
+
+    if not datetime_value and not date_value:
+        return jsonify({"message": "date or datetime query parameter is required"}), 400
 
     try:
-        target_date = _parse_workday_date(date_value)
+        if datetime_value:
+            target_date = _parse_workday_datetime(datetime_value)
+        else:
+            target_date = _parse_workday_date(date_value)
     except ValueError as exc:
         return jsonify({"message": str(exc)}), 400
 
     day_info = _check_day_type(target_date)
-    return jsonify({"date": date_value, **day_info})
+    response: Dict[str, Any] = {**day_info}
+    if datetime_value:
+        response["datetime"] = datetime_value
+    else:
+        response["date"] = date_value
+    return jsonify(response)
 
 
 @app.route("/api/events/<int:item_id>", methods=["GET", "PUT", "DELETE"])

@@ -13,6 +13,7 @@ from app import (
     ALLOWED_END_TYPES,
     _check_day_type,
     _parse_workday_date,
+    _parse_workday_datetime,
 )
 
 
@@ -294,16 +295,36 @@ class TestWorkdayHelpers:
             _parse_workday_date("2025/02/10")
         assert "date must be YYYY-MM-DD" in str(exc_info.value)
 
-    def test_check_day_type_workday(self):
-        """测试工作日判断"""
-        result = _check_day_type(datetime(2025, 2, 10))  # Monday
+    def test_parse_workday_datetime_success(self):
+        """测试工作日查询日期时间解析成功"""
+        parsed = _parse_workday_datetime("2025-02-10T09:30")
+        assert parsed == datetime(2025, 2, 10, 9, 30)
+
+    def test_parse_workday_datetime_invalid(self):
+        """测试工作日查询日期时间解析失败"""
+        with pytest.raises(ValueError) as exc_info:
+            _parse_workday_datetime("2025-02-10 09:30")
+        assert "datetime must be YYYY-MM-DDTHH:MM" in str(exc_info.value)
+
+    def test_check_day_type_working_hours(self):
+        """测试工作时间判断"""
+        result = _check_day_type(datetime(2025, 2, 10, 10, 0))
         assert result["is_workday"] is True
+        assert result["is_working_hours"] is True
         assert result["day_type"] == "workday"
+
+    def test_check_day_type_offhours(self):
+        """测试工作日非工作时间判断"""
+        result = _check_day_type(datetime(2025, 2, 10, 20, 0))
+        assert result["is_workday"] is True
+        assert result["is_working_hours"] is False
+        assert result["day_type"] == "offhours"
 
     def test_check_day_type_restday(self):
         """测试休息日判断"""
         result = _check_day_type(datetime(2025, 2, 9))  # Sunday
         assert result["is_workday"] is False
+        assert result["is_working_hours"] is False
         assert result["day_type"] == "restday"
 
 
