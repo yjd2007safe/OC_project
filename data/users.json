@@ -5,7 +5,9 @@
       "iterations": 260000,
       "hash": "vDiFNs/U0RYG6sPrp27VevsrjUxvurZVoDeGRoJsHJw="
     },
-    "api_key": "cs_demo_key_001"
+    "api_key": "cs_demo_key_001",
+    "enabled": true,
+    "created_at": ""
   },
   "admin": {
     "password": {
@@ -13,6 +15,178 @@
       "iterations": 260000,
       "hash": "VTI1lDlOgzaY8cqzZlpIFh7Mautmv85rewdKdWAMR7A="
     },
-    "api_key": "cs_admin_key_002"
+    "api_key": "cs_admin_key_002",
+    "enabled": true,
+    "created_at": ""
+  },
+  "newuser": {
+    "password": {
+      "salt": "IheRURQ7aP935DNaTLn1Yw==",
+      "iterations": 260000,
+      "hash": "2dwHNuGyKTJ/XqYQDznRMD0Br7gdqcu83WabM0qcL1U="
+    },
+    "api_key": "cs_2pJALA2p0i741-dZN-SMPzpWlS9rS7-x",
+    "enabled": true,
+    "created_at": "2026-02-08T13:49:08"
+  },
+  "dupuser": {
+    "password": {
+      "salt": "Rjh8ojF3M8/Sr/8EJFg44w==",
+      "iterations": 260000,
+      "hash": "VSaZDEhYO0cQKVPpC+8LNhHRWwqMDnbGlEJYwpfjCIk="
+    },
+    "api_key": "cs_IsA3MZQRCzv9TG4CwHz1TyS66s753ppo",
+    "enabled": true,
+    "created_at": "2026-02-08T13:49:09"
+  },
+  "loginuser": {
+    "password": {
+      "salt": "+r84NYyMz4zEYCZguCxPQQ==",
+      "iterations": 260000,
+      "hash": "NRdE7u7SMgRoSvBE4mmQQBVZwSW5yZc56YNz+4Dq/RE="
+    },
+    "api_key": "cs_xE1CGX6R6eyDIyGiGLk4j6aGDtmhKzn1",
+    "enabled": true,
+    "created_at": "2026-02-08T13:49:12"
+  },
+  "loginuser2": {
+    "password": {
+      "salt": "kyBmqS59wdfi3cbjrc2Cqw==",
+      "iterations": 260000,
+      "hash": "DOgX7u1KGx2KDRhX9tEMqoUjS/qXg3IIxoBZs2cqn5E="
+    },
+    "api_key": "cs_1A9lAP8uobIbWuDJSDVdwN57X41FONeq",
+    "enabled": true,
+    "created_at": "2026-02-08T13:49:15"
+  },
+  "testuser": {
+    "password": {
+      "salt": "0DNZI8z+K9v20cZBE6VFSw==",
+      "iterations": 260000,
+      "hash": "evAT6TkwiuOEOhT9R3f3mJ7DV7582LyS3BsL6FZatvY="
+    },
+    "api_key": "cs_l3IcvBv3_7PGfB9f5JleoYa0ytNBeXgK",
+    "enabled": true,
+    "created_at": "2026-02-08T13:49:18"
+  },
+  "apikeyuser": {
+    "password": {
+      "salt": "YIEZnkxjChoe1lJSfrzr9g==",
+      "iterations": 260000,
+      "hash": "XtjuNzrq+9S0cO9uARWrTphLiOJ9KUBz4WAAYMJ+GYw="
+    },
+    "api_key": "cs_OdqqvrU-0H088E3ahVVMPMrtMVIkGxLB",
+    "enabled": true,
+    "created_at": "2026-02-08T13:49:39"
+  },
+  "slotuser": {
+    "password": {
+      "salt": "46jC6LH+2vYkXAG/7QgESQ==",
+      "iterations": 260000,
+      "hash": "UGozDNvEugNxT0b4AUiwOjjvOFl07A8pDZdRdWseb24="
+    },
+    "api_key": "cs_tVK2wmVxsnLVvGXfqCAHm0Z86yywtQLF",
+    "enabled": true,
+    "created_at": "2026-02-08T13:49:55"
+  },
+  "slotuser2": {
+    "password": {
+      "salt": "6z+qRVzY+tnjpqTgX73XCQ==",
+      "iterations": 260000,
+      "hash": "FlRyaD3XauGDSYq2+YBxjoXjsQGcV/zc59nTzKikeYA="
+    },
+    "api_key": "cs_FPBevufT8UbOvGskwxODDe-9mT2XBC8K",
+    "enabled": true,
+    "created_at": "2026-02-08T13:49:57"
+  },
+  "e2euser": {
+    "password": {
+      "salt": "6givav34RxQ0pVfuE6eiwA==",
+      "iterations": 260000,
+      "hash": "bi0AOExN4uA1TpHpr8iISUVTHjwpVMo+f4wF+4HcR+w="
+    },
+    "api_key": "cs_gWEKpRDa6tK0xVDxxd2TZDa0QkbSbEFO",
+    "enabled": true,
+    "created_at": "2026-02-08T14:48:24"
+  },
+  "eventuser": {
+    "password": {
+      "salt": "2IccvqdolYSkQDmKG/KfPg==",
+      "iterations": 260000,
+      "hash": "rNnSm9oeiGllWNa04zfP1kE06p83QvbToTFr+8h6W3o="
+    },
+    "api_key": "cs_Ve1tWh_6ffZ7V2DYymZnEu8G1IAh739v",
+    "enabled": true,
+    "created_at": "2026-02-08T14:48:27"
+  },
+  "recuruser": {
+    "password": {
+      "salt": "JJaGOycobvc60IHQugA5Fw==",
+      "iterations": 260000,
+      "hash": "qqwvw5TAhBRrBGeyCZUea+EhUSBY5TX0zi9IPZ2P0Vo="
+    },
+    "api_key": "cs_kgmehbUQTQZJ-IcdXHomqhKISXM5fBSw",
+    "enabled": true,
+    "created_at": "2026-02-08T14:48:29"
+  },
+  "untiluser": {
+    "password": {
+      "salt": "mIRpj4q3BAwVle5aJZ31pg==",
+      "iterations": 260000,
+      "hash": "N8YWbXtFsqvDJvVkYtshxXfr7n2IrtsWiNP8PCeKyYM="
+    },
+    "api_key": "cs_S4Tw40JkIrtNbJGCZuJFULSQqkbMojQ9",
+    "enabled": true,
+    "created_at": "2026-02-08T14:48:32"
+  },
+  "updaterecuruser": {
+    "password": {
+      "salt": "hCXpSQh3BmgvLG2zZ/mJrA==",
+      "iterations": 260000,
+      "hash": "zAIEXD1ug/vN0/HXY7feznCxGmfAbJMaLaFFRZW7u9Y="
+    },
+    "api_key": "cs_1yGQJie7Y4TWyYn0jUfbDdrWOm_-C5J-",
+    "enabled": true,
+    "created_at": "2026-02-08T14:48:35"
+  },
+  "user1": {
+    "password": {
+      "salt": "0HExuvHwFvtrbf4X0TESRQ==",
+      "iterations": 260000,
+      "hash": "0e02ZXjIzf+CflAH/+UWdfTTpiGxW59HGAHV2KPIp6E="
+    },
+    "api_key": "cs_ejw-rwq3Z0vivsGzBdswGJ4QOe0DDwON",
+    "enabled": true,
+    "created_at": "2026-02-08T14:48:38"
+  },
+  "user2": {
+    "password": {
+      "salt": "APXv4i/rGnAcnewl4j1+8g==",
+      "iterations": 260000,
+      "hash": "I1BlZjLolgrFnOE8swbwg4LV8j1TRpusmitcVqhsJZk="
+    },
+    "api_key": "cs_eRpswu53jYzEm_dgFed21YKHQDCxsO8Z",
+    "enabled": true,
+    "created_at": "2026-02-08T14:48:40"
+  },
+  "erroruser": {
+    "password": {
+      "salt": "7OyrCwoe7WzBdWhvWEGp6g==",
+      "iterations": 260000,
+      "hash": "pxoEuy5sOWsnc1EJUVW4lmgYu/vOOCj8XXxeZEk+vNI="
+    },
+    "api_key": "cs_FB9mn4Ay-cyHxUf2wFmLmLpG44kZ57K-",
+    "enabled": true,
+    "created_at": "2026-02-08T14:48:42"
+  },
+  "fielduser": {
+    "password": {
+      "salt": "lBEaUjvv1e7X/EL+4Va8YQ==",
+      "iterations": 260000,
+      "hash": "6wdEjwKIuiexXoFHGYuyrr5AJ1G3bNmi4uRkR3Q4+Pc="
+    },
+    "api_key": "cs_Qef4GiO2XER5z1kiqVOxJqftxRFEF7R5",
+    "enabled": true,
+    "created_at": "2026-02-08T14:48:46"
   }
 }

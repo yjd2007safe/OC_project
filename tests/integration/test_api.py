@@ -296,6 +296,57 @@ class TestEventsAPI:
         data = response.get_json()
         assert "Time conflict" in data["message"]
 
+    def test_create_event_restday_warning(self, auth_client):
+        """测试创建休息日日程返回提醒"""
+        response = auth_client.post("/api/events", json={
+            "title": "周末会议",
+            "time": "2025-02-09T10:00",
+            "location": "会议室A",
+            "description": "周末安排"
+        })
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["warning"]["type"] == "restday"
+        assert data["warning"]["message"] == "该日程安排在休息日"
+
+    def test_create_event_workday_without_warning(self, auth_client):
+        """测试创建工作日日程不返回提醒"""
+        response = auth_client.post("/api/events", json={
+            "title": "周一会议",
+            "time": "2025-02-10T10:00",
+            "location": "会议室A",
+            "description": "工作日安排"
+        })
+        assert response.status_code == 201
+        data = response.get_json()
+        assert "warning" not in data
+
+    def test_workday_check_endpoint_workday(self, auth_client):
+        """测试工作日查询接口-工作日"""
+        response = auth_client.get("/api/events/workday-check?date=2025-02-10")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["date"] == "2025-02-10"
+        assert data["is_workday"] is True
+        assert data["day_type"] == "workday"
+
+    def test_workday_check_endpoint_restday(self, auth_client):
+        """测试工作日查询接口-休息日"""
+        response = auth_client.get("/api/events/workday-check?date=2025-02-09")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["date"] == "2025-02-09"
+        assert data["is_workday"] is False
+        assert data["day_type"] == "restday"
+
+    def test_workday_check_endpoint_invalid_date(self, auth_client):
+        """测试工作日查询接口-日期格式错误"""
+        response = auth_client.get("/api/events/workday-check?date=2025/02/09")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "YYYY-MM-DD" in data["message"]
+
+
     def test_list_events(self, auth_client):
         """测试获取日程列表"""
         # 先创建几个日程
