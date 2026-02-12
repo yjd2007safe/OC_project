@@ -130,6 +130,17 @@
 
         <div class="panel">
           <h3>日程列表</h3>
+          <div class="schedule-controls">
+            <div class="view-toggle" role="group" aria-label="视图切换">
+              <button id="daily-view-button" type="button" class="secondary">按天</button>
+              <button id="weekly-view-button" type="button" class="secondary">按周</button>
+            </div>
+            <div class="nav-controls">
+              <button id="prev-period-button" type="button" class="secondary">上一段</button>
+              <span id="period-label" class="period-label"></span>
+              <button id="next-period-button" type="button" class="secondary">下一段</button>
+            </div>
+          </div>
           <ul id="schedule-list" class="schedule-list"></ul>
         </div>
       </div>

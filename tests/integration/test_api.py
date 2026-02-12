@@ -591,3 +591,18 @@ class TestProfile:
         data = response.get_json()
         assert data["username"] == "testuser"
         assert "api_key" in data
+
+
+class TestFrontendTemplate:
+    """前端模板渲染测试"""
+
+    def test_index_contains_weekly_view_controls(self, client):
+        """首页包含按天/按周和导航控件"""
+        response = client.get("/")
+        assert response.status_code == 200
+        body = response.get_data(as_text=True)
+        assert 'id="daily-view-button"' in body
+        assert 'id="weekly-view-button"' in body
+        assert 'id="prev-period-button"' in body
+        assert 'id="next-period-button"' in body
+        assert 'id="period-label"' in body

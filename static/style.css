@@ -145,6 +145,59 @@ button.secondary:hover {
   gap: 12px;
 }
 
+.schedule-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.view-toggle,
+.nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+button.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.period-label {
+  font-size: 13px;
+  color: var(--muted);
+  min-width: 190px;
+  text-align: center;
+}
+
+.weekly-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(220px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.weekly-day {
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+}
+
+.weekly-day > h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.day-list .schedule-item {
+  padding: 10px;
+}
+
 .schedule-item {
   padding: 12px;
   border-radius: 12px;

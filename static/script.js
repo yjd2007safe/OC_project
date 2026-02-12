@@ -15,10 +15,19 @@ const formTitle = document.getElementById("form-title");
 const recurrenceEndTypeWrap = document.getElementById("recurrence-end-type-wrap");
 const recurrenceUntilWrap = document.getElementById("recurrence-until-wrap");
 const recurrenceCountWrap = document.getElementById("recurrence-count-wrap");
+const dailyViewButton = document.getElementById("daily-view-button");
+const weeklyViewButton = document.getElementById("weekly-view-button");
+const prevPeriodButton = document.getElementById("prev-period-button");
+const nextPeriodButton = document.getElementById("next-period-button");
+const periodLabel = document.getElementById("period-label");
+
+const VIEW_STORAGE_KEY = "calendar-secretary-view-mode";
 
 const state = {
   schedules: [],
   editingId: null,
+  viewMode: localStorage.getItem(VIEW_STORAGE_KEY) === "weekly" ? "weekly" : "daily",
+  currentDate: new Date(),
 };
 
 const request = async (url, options = {}) => {
@@ -114,62 +123,171 @@ const buildRecurrencePayload = () => {
   return payload;
 };
 
-const loadSchedules = async () => {
-  const data = await request("/api/events");
-  state.schedules = data.items || [];
-  renderSchedules();
+const parseEventTime = (item) => {
+  const value = item.end_time || item.time;
+  return new Date(value);
+};
+
+const formatDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const startOfWeek = (date) => {
+  const result = new Date(date);
+  const day = result.getDay() || 7;
+  result.setHours(0, 0, 0, 0);
+  result.setDate(result.getDate() - day + 1);
+  return result;
+};
+
+const createScheduleItem = (item) => {
+  const li = document.createElement("li");
+  li.className = "schedule-item";
+
+  const title = document.createElement("h4");
+  title.textContent = item.title;
+
+  const time = document.createElement("p");
+  time.innerHTML = `<strong>时间：</strong>${item.time} - ${item.end_time || ""}`;
+
+  const location = document.createElement("p");
+  location.innerHTML = `<strong>地点：</strong>${item.location}`;
+
+  const description = document.createElement("p");
+  description.innerHTML = `<strong>描述：</strong>${item.description}`;
+
+  const recurrence = document.createElement("p");
+  recurrence.innerHTML = `<strong>重复：</strong>${recurrenceText(item.recurrence)}`;
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = `编号 #${item.id}`;
+
+  const actions = document.createElement("div");
+  actions.className = "item-actions";
+
+  const editButton = document.createElement("button");
+  editButton.className = "secondary";
+  editButton.textContent = "编辑";
+  editButton.addEventListener("click", () => setEditing(item));
+
+  const deleteButton = document.createElement("button");
+  deleteButton.textContent = "删除";
+  deleteButton.addEventListener("click", () => deleteSchedule(item.id));
+
+  actions.append(editButton, deleteButton);
+  li.append(title, time, location, description, recurrence, meta, actions);
+  return li;
+};
+
+const buildEmptyItem = (message) => {
+  const empty = document.createElement("li");
+  empty.className = "schedule-item";
+  empty.textContent = message;
+  return empty;
+};
+
+const renderDailyView = () => {
+  scheduleList.classList.remove("weekly-grid");
+  const dateKey = formatDateKey(state.currentDate);
+  const events = state.schedules.filter((item) => {
+    const eventDate = parseEventTime(item);
+    return !Number.isNaN(eventDate.valueOf()) && formatDateKey(eventDate) === dateKey;
+  });
+  periodLabel.textContent = `${dateKey}（日视图）`;
+
+  if (events.length === 0) {
+    scheduleList.appendChild(buildEmptyItem("当天暂无日程。"));
+    return;
+  }
+
+  events
+    .sort((a, b) => parseEventTime(a) - parseEventTime(b))
+    .forEach((item) => scheduleList.appendChild(createScheduleItem(item)));
+};
+
+const renderWeeklyView = () => {
+  scheduleList.classList.add("weekly-grid");
+  const weekStart = startOfWeek(state.currentDate);
+  const weekDays = Array.from({ length: 7 }, (_, offset) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + offset);
+    return date;
+  });
+
+  const dayNames = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+  const weekEnd = weekDays[6];
+  periodLabel.textContent = `${formatDateKey(weekStart)} ~ ${formatDateKey(weekEnd)}（周视图）`;
+
+  weekDays.forEach((dayDate, index) => {
+    const column = document.createElement("li");
+    column.className = "weekly-day";
+
+    const title = document.createElement("h4");
+    title.textContent = `${dayNames[index]} ${formatDateKey(dayDate)}`;
+
+    const list = document.createElement("ul");
+    list.className = "schedule-list day-list";
+
+    const events = state.schedules
+      .filter((item) => {
+        const eventDate = parseEventTime(item);
+        return !Number.isNaN(eventDate.valueOf()) && formatDateKey(eventDate) === formatDateKey(dayDate);
+      })
+      .sort((a, b) => parseEventTime(a) - parseEventTime(b));
+
+    if (events.length === 0) {
+      list.appendChild(buildEmptyItem("暂无日程"));
+    } else {
+      events.forEach((item) => list.appendChild(createScheduleItem(item)));
+    }
+
+    column.append(title, list);
+    scheduleList.appendChild(column);
+  });
 };
 
 const renderSchedules = () => {
   scheduleList.innerHTML = "";
+  dailyViewButton.classList.toggle("active", state.viewMode === "daily");
+  weeklyViewButton.classList.toggle("active", state.viewMode === "weekly");
+
   if (state.schedules.length === 0) {
-    const empty = document.createElement("li");
-    empty.className = "schedule-item";
-    empty.textContent = "暂无日程，请在左侧新增。";
-    scheduleList.appendChild(empty);
+    scheduleList.classList.remove("weekly-grid");
+    periodLabel.textContent = "";
+    scheduleList.appendChild(buildEmptyItem("暂无日程，请在左侧新增。"));
     return;
   }
 
-  state.schedules.forEach((item) => {
-    const li = document.createElement("li");
-    li.className = "schedule-item";
+  if (state.viewMode === "weekly") {
+    renderWeeklyView();
+    return;
+  }
 
-    const title = document.createElement("h4");
-    title.textContent = item.title;
+  renderDailyView();
+};
 
-    const time = document.createElement("p");
-    time.innerHTML = `<strong>时间：</strong>${item.time} - ${item.end_time || ""}`;
+const setViewMode = (viewMode) => {
+  state.viewMode = viewMode;
+  localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
+  renderSchedules();
+};
 
-    const location = document.createElement("p");
-    location.innerHTML = `<strong>地点：</strong>${item.location}`;
+const movePeriod = (step) => {
+  const baseDate = new Date(state.currentDate);
+  const days = state.viewMode === "weekly" ? step * 7 : step;
+  baseDate.setDate(baseDate.getDate() + days);
+  state.currentDate = baseDate;
+  renderSchedules();
+};
 
-    const description = document.createElement("p");
-    description.innerHTML = `<strong>描述：</strong>${item.description}`;
-
-    const recurrence = document.createElement("p");
-    recurrence.innerHTML = `<strong>重复：</strong>${recurrenceText(item.recurrence)}`;
-
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = `编号 #${item.id}`;
-
-    const actions = document.createElement("div");
-    actions.className = "item-actions";
-
-    const editButton = document.createElement("button");
-    editButton.className = "secondary";
-    editButton.textContent = "编辑";
-    editButton.addEventListener("click", () => setEditing(item));
-
-    const deleteButton = document.createElement("button");
-    deleteButton.textContent = "删除";
-    deleteButton.addEventListener("click", () => deleteSchedule(item.id));
-
-    actions.append(editButton, deleteButton);
-
-    li.append(title, time, location, description, recurrence, meta, actions);
-    scheduleList.appendChild(li);
-  });
+const loadSchedules = async () => {
+  const data = await request("/api/events");
+  state.schedules = data.items || [];
+  renderSchedules();
 };
 
 const deleteSchedule = async (id) => {
@@ -282,19 +400,25 @@ logoutButton.addEventListener("click", async () => {
   setEditing();
 });
 
+dailyViewButton.addEventListener("click", () => setViewMode("daily"));
+weeklyViewButton.addEventListener("click", () => setViewMode("weekly"));
+prevPeriodButton.addEventListener("click", () => movePeriod(-1));
+nextPeriodButton.addEventListener("click", () => movePeriod(1));
+
 adminLink.addEventListener("click", () => {
   window.location.href = "/admin";
 });
 
 const initialize = async () => {
   setEditing();
+  renderSchedules();
   try {
     const data = await request("/session");
     if (data.username) {
       loginSection.classList.add("hidden");
       appSection.classList.remove("hidden");
       welcome.textContent = `欢迎，${data.username}`;
-    adminLink.classList.toggle("hidden", !data.is_admin);
+      adminLink.classList.toggle("hidden", !data.is_admin);
       await loadSchedules();
     }
   } catch (error) {
