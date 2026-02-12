@@ -15,11 +15,25 @@ const formTitle = document.getElementById("form-title");
 const recurrenceEndTypeWrap = document.getElementById("recurrence-end-type-wrap");
 const recurrenceUntilWrap = document.getElementById("recurrence-until-wrap");
 const recurrenceCountWrap = document.getElementById("recurrence-count-wrap");
+const calendarContent = document.getElementById("calendar-content");
+const viewTitle = document.getElementById("view-title");
+const viewButtons = Array.from(document.querySelectorAll(".view-button"));
+const prevPeriodButton = document.getElementById("prev-period");
+const nextPeriodButton = document.getElementById("next-period");
+const todayPeriodButton = document.getElementById("today-period");
+
+const VIEW_STORAGE_KEY = "calendarSecretary.view";
 
 const state = {
   schedules: [],
   editingId: null,
+  currentDate: new Date(),
+  currentView: localStorage.getItem(VIEW_STORAGE_KEY) || "day",
 };
+
+if (!["day", "week", "month"].includes(state.currentView)) {
+  state.currentView = "day";
+}
 
 const request = async (url, options = {}) => {
   const response = await fetch(url, {
@@ -117,66 +131,244 @@ const buildRecurrencePayload = () => {
 const loadSchedules = async () => {
   const data = await request("/api/events");
   state.schedules = data.items || [];
-  renderSchedules();
+  renderCurrentView();
 };
 
-const renderSchedules = () => {
+const toDate = (dateString) => {
+  if (!dateString) {
+    return null;
+  }
+  const parsed = new Date(dateString);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const dayStart = (value) => new Date(value.getFullYear(), value.getMonth(), value.getDate());
+
+const isSameDay = (a, b) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+const startOfWeek = (value) => {
+  const start = dayStart(value);
+  const day = start.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + diff);
+  return start;
+};
+
+const endOfWeek = (value) => {
+  const end = startOfWeek(value);
+  end.setDate(end.getDate() + 6);
+  return end;
+};
+
+const formatDate = (value) =>
+  value.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit", weekday: "short" });
+
+const formatMonthTitle = (value) => `${value.getFullYear()}年${value.getMonth() + 1}月`;
+
+const getSchedulesForDate = (targetDate) =>
+  state.schedules
+    .filter((item) => {
+      const eventDate = toDate(item.time);
+      return eventDate && isSameDay(eventDate, targetDate);
+    })
+    .sort((a, b) => a.time.localeCompare(b.time));
+
+const createScheduleListItem = (item) => {
+  const li = document.createElement("li");
+  li.className = "schedule-item";
+
+  const title = document.createElement("h4");
+  title.textContent = item.title;
+
+  const time = document.createElement("p");
+  time.innerHTML = `<strong>时间：</strong>${item.time} - ${item.end_time || ""}`;
+
+  const location = document.createElement("p");
+  location.innerHTML = `<strong>地点：</strong>${item.location}`;
+
+  const description = document.createElement("p");
+  description.innerHTML = `<strong>描述：</strong>${item.description}`;
+
+  const recurrence = document.createElement("p");
+  recurrence.innerHTML = `<strong>重复：</strong>${recurrenceText(item.recurrence)}`;
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = `编号 #${item.id}`;
+
+  const actions = document.createElement("div");
+  actions.className = "item-actions";
+
+  const editButton = document.createElement("button");
+  editButton.className = "secondary";
+  editButton.textContent = "编辑";
+  editButton.addEventListener("click", () => setEditing(item));
+
+  const deleteButton = document.createElement("button");
+  deleteButton.textContent = "删除";
+  deleteButton.addEventListener("click", () => deleteSchedule(item.id));
+
+  actions.append(editButton, deleteButton);
+  li.append(title, time, location, description, recurrence, meta, actions);
+
+  return li;
+};
+
+const renderDayView = () => {
+  const items = getSchedulesForDate(state.currentDate);
+  viewTitle.textContent = `日视图 · ${formatDate(state.currentDate)}`;
+
   scheduleList.innerHTML = "";
-  if (state.schedules.length === 0) {
+  scheduleList.classList.remove("hidden");
+  calendarContent.innerHTML = "";
+
+  if (items.length === 0) {
     const empty = document.createElement("li");
     empty.className = "schedule-item";
-    empty.textContent = "暂无日程，请在左侧新增。";
+    empty.textContent = "当天暂无日程。";
     scheduleList.appendChild(empty);
     return;
   }
 
-  state.schedules.forEach((item) => {
-    const li = document.createElement("li");
-    li.className = "schedule-item";
-
-    const title = document.createElement("h4");
-    title.textContent = item.title;
-
-    const time = document.createElement("p");
-    time.innerHTML = `<strong>时间：</strong>${item.time} - ${item.end_time || ""}`;
-
-    const location = document.createElement("p");
-    location.innerHTML = `<strong>地点：</strong>${item.location}`;
-
-    const description = document.createElement("p");
-    description.innerHTML = `<strong>描述：</strong>${item.description}`;
-
-    const recurrence = document.createElement("p");
-    recurrence.innerHTML = `<strong>重复：</strong>${recurrenceText(item.recurrence)}`;
-
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = `编号 #${item.id}`;
-
-    const actions = document.createElement("div");
-    actions.className = "item-actions";
-
-    const editButton = document.createElement("button");
-    editButton.className = "secondary";
-    editButton.textContent = "编辑";
-    editButton.addEventListener("click", () => setEditing(item));
-
-    const deleteButton = document.createElement("button");
-    deleteButton.textContent = "删除";
-    deleteButton.addEventListener("click", () => deleteSchedule(item.id));
-
-    actions.append(editButton, deleteButton);
-
-    li.append(title, time, location, description, recurrence, meta, actions);
-    scheduleList.appendChild(li);
+  items.forEach((item) => {
+    scheduleList.appendChild(createScheduleListItem(item));
   });
+};
+
+const renderWeekView = () => {
+  const start = startOfWeek(state.currentDate);
+  const end = endOfWeek(state.currentDate);
+  viewTitle.textContent = `周视图 · ${formatDate(start)} - ${formatDate(end)}`;
+
+  scheduleList.classList.add("hidden");
+  calendarContent.innerHTML = "";
+
+  const weekWrap = document.createElement("div");
+  weekWrap.className = "week-view";
+
+  for (let i = 0; i < 7; i += 1) {
+    const day = new Date(start);
+    day.setDate(start.getDate() + i);
+    const dayItems = getSchedulesForDate(day);
+
+    const dayCol = document.createElement("section");
+    dayCol.className = "week-day";
+
+    const dayTitle = document.createElement("h4");
+    dayTitle.textContent = formatDate(day);
+
+    const list = document.createElement("ul");
+    list.className = "week-events";
+    if (dayItems.length === 0) {
+      const empty = document.createElement("li");
+      empty.className = "empty-note";
+      empty.textContent = "暂无";
+      list.appendChild(empty);
+    } else {
+      dayItems.forEach((item) => {
+        const li = document.createElement("li");
+        li.textContent = `${item.time.slice(11, 16)} ${item.title}`;
+        list.appendChild(li);
+      });
+    }
+
+    dayCol.append(dayTitle, list);
+    weekWrap.appendChild(dayCol);
+  }
+
+  calendarContent.appendChild(weekWrap);
+};
+
+const renderMonthView = () => {
+  const current = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
+  viewTitle.textContent = `月视图 · ${formatMonthTitle(current)}`;
+
+  scheduleList.classList.add("hidden");
+  calendarContent.innerHTML = "";
+
+  const grid = document.createElement("div");
+  grid.className = "month-grid";
+
+  ["周一", "周二", "周三", "周四", "周五", "周六", "周日"].forEach((label) => {
+    const header = document.createElement("div");
+    header.className = "month-cell month-header";
+    header.textContent = label;
+    grid.appendChild(header);
+  });
+
+  const start = startOfWeek(current);
+  const month = current.getMonth();
+
+  for (let i = 0; i < 42; i += 1) {
+    const day = new Date(start);
+    day.setDate(start.getDate() + i);
+    const items = getSchedulesForDate(day);
+
+    const cell = document.createElement("div");
+    cell.className = "month-cell";
+    if (day.getMonth() !== month) {
+      cell.classList.add("outside");
+    }
+    if (isSameDay(day, new Date())) {
+      cell.classList.add("today");
+    }
+
+    const dayLabel = document.createElement("div");
+    dayLabel.className = "month-day";
+    dayLabel.textContent = String(day.getDate());
+
+    const summary = document.createElement("div");
+    summary.className = "month-summary";
+    if (items.length === 0) {
+      summary.textContent = "无日程";
+    } else if (items.length === 1) {
+      summary.textContent = items[0].title;
+    } else {
+      summary.textContent = `${items.length} 个日程`;
+    }
+
+    cell.append(dayLabel, summary);
+    grid.appendChild(cell);
+  }
+
+  calendarContent.appendChild(grid);
+};
+
+const renderCurrentView = () => {
+  viewButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === state.currentView);
+  });
+
+  if (state.currentView === "week") {
+    renderWeekView();
+    return;
+  }
+
+  if (state.currentView === "month") {
+    renderMonthView();
+    return;
+  }
+
+  renderDayView();
+};
+
+const shiftPeriod = (direction) => {
+  if (state.currentView === "month") {
+    state.currentDate.setMonth(state.currentDate.getMonth() + direction);
+  } else if (state.currentView === "week") {
+    state.currentDate.setDate(state.currentDate.getDate() + (direction * 7));
+  } else {
+    state.currentDate.setDate(state.currentDate.getDate() + direction);
+  }
+  renderCurrentView();
 };
 
 const deleteSchedule = async (id) => {
   try {
     await request(`/api/events/${id}`, { method: "DELETE" });
     state.schedules = state.schedules.filter((item) => item.id !== id);
-    renderSchedules();
+    renderCurrentView();
     setMessage(formMessage, "日程已删除。", false);
   } catch (error) {
     setMessage(formMessage, error.message, true);
@@ -256,7 +448,7 @@ scheduleForm.addEventListener("submit", async (event) => {
       setMessage(formMessage, "日程已创建。", false);
     }
     setEditing();
-    renderSchedules();
+    renderCurrentView();
   } catch (error) {
     if (error.status === 409) {
       setMessage(formMessage, `⚠️ ${error.message}`, true);
@@ -274,6 +466,21 @@ resetButton.addEventListener("click", () => {
   setMessage(formMessage, "");
 });
 
+viewButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.currentView = button.dataset.view;
+    localStorage.setItem(VIEW_STORAGE_KEY, state.currentView);
+    renderCurrentView();
+  });
+});
+
+prevPeriodButton.addEventListener("click", () => shiftPeriod(-1));
+nextPeriodButton.addEventListener("click", () => shiftPeriod(1));
+todayPeriodButton.addEventListener("click", () => {
+  state.currentDate = new Date();
+  renderCurrentView();
+});
+
 logoutButton.addEventListener("click", async () => {
   await request("/logout", { method: "POST" });
   appSection.classList.add("hidden");
@@ -288,6 +495,7 @@ adminLink.addEventListener("click", () => {
 
 const initialize = async () => {
   setEditing();
+  renderCurrentView();
   try {
     const data = await request("/session");
     if (data.username) {

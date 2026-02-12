@@ -129,8 +129,21 @@
         </form>
 
         <div class="panel">
-          <h3>日程列表</h3>
-          <ul id="schedule-list" class="schedule-list"></ul>
+          <div class="view-toolbar">
+            <div class="view-switch" role="tablist" aria-label="视图切换">
+              <button type="button" class="secondary view-button" data-view="day">日</button>
+              <button type="button" class="secondary view-button" data-view="week">周</button>
+              <button type="button" class="secondary view-button" data-view="month">月</button>
+            </div>
+            <div class="calendar-nav">
+              <button type="button" class="secondary" id="prev-period">上一页</button>
+              <button type="button" class="secondary" id="today-period">今天</button>
+              <button type="button" class="secondary" id="next-period">下一页</button>
+            </div>
+          </div>
+          <h3 id="view-title">日程列表</h3>
+          <div id="calendar-content"></div>
+          <ul id="schedule-list" class="schedule-list hidden"></ul>
         </div>
       </div>
     </section>
