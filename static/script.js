@@ -15,11 +15,44 @@ const formTitle = document.getElementById("form-title");
 const recurrenceEndTypeWrap = document.getElementById("recurrence-end-type-wrap");
 const recurrenceUntilWrap = document.getElementById("recurrence-until-wrap");
 const recurrenceCountWrap = document.getElementById("recurrence-count-wrap");
+const dayViewButton = document.getElementById("view-day");
+const weekViewButton = document.getElementById("view-week");
+const monthViewButton = document.getElementById("view-month");
+const previousRangeButton = document.getElementById("previous-range");
+const nextRangeButton = document.getElementById("next-range");
+const todayRangeButton = document.getElementById("today-range");
+const calendarRangeLabel = document.getElementById("calendar-range-label");
+const infoTotal = document.getElementById("info-total");
+const infoCompleted = document.getElementById("info-completed");
+const infoRemaining = document.getElementById("info-remaining");
+const nextUpcomingEmpty = document.getElementById("next-upcoming-empty");
+const nextUpcomingDetail = document.getElementById("next-upcoming-detail");
+const nextUpcomingTitle = document.getElementById("next-upcoming-title");
+const nextUpcomingTime = document.getElementById("next-upcoming-time");
+const nextUpcomingLocation = document.getElementById("next-upcoming-location");
+const VIEW_MODE_STORAGE_KEY = "calendar-secretary-view-mode";
+const AVAILABLE_VIEW_MODES = new Set(["day", "week", "month"]);
+
+function getInitialViewMode() {
+  const storedMode = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+  if (storedMode && AVAILABLE_VIEW_MODES.has(storedMode)) {
+    return storedMode;
+  }
+  return "week";
+}
 
 const state = {
   schedules: [],
   editingId: null,
+  viewMode: getInitialViewMode(),
+  currentDate: normalizeDate(new Date()),
 };
+
+function normalizeDate(date) {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+}
 
 const request = async (url, options = {}) => {
   const response = await fetch(url, {
@@ -114,23 +147,322 @@ const buildRecurrencePayload = () => {
   return payload;
 };
 
-const loadSchedules = async () => {
-  const data = await request("/api/events");
-  state.schedules = data.items || [];
-  renderSchedules();
-};
+function parseEventStart(item) {
+  return new Date(item.time);
+}
 
-const renderSchedules = () => {
-  scheduleList.innerHTML = "";
-  if (state.schedules.length === 0) {
+function parseEventEnd(item) {
+  if (item.end_time) {
+    return new Date(item.end_time);
+  }
+  return new Date(item.time);
+}
+
+function formatDateKey(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatRangeDate(date) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).format(date);
+}
+
+function getWeekStart(date) {
+  const current = normalizeDate(date);
+  const day = current.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  current.setDate(current.getDate() + diff);
+  return current;
+}
+
+function getWeekDates(date) {
+  const start = getWeekStart(date);
+  return Array.from({ length: 7 }, (_, index) => {
+    const target = new Date(start);
+    target.setDate(start.getDate() + index);
+    return target;
+  });
+}
+
+function compareByTime(a, b) {
+  return parseEventStart(a) - parseEventStart(b);
+}
+
+function getEventsForDate(date) {
+  const dateKey = formatDateKey(date);
+  return state.schedules
+    .filter((item) => formatDateKey(parseEventStart(item)) === dateKey)
+    .sort(compareByTime);
+}
+
+function getEventsForCurrentRange() {
+  const current = state.currentDate;
+  const year = current.getFullYear();
+  const month = current.getMonth();
+  const dateKey = formatDateKey(current);
+
+  if (state.viewMode === "day") {
+    return state.schedules
+      .filter((item) => formatDateKey(parseEventStart(item)) === dateKey)
+      .sort(compareByTime);
+  }
+
+  if (state.viewMode === "week") {
+    const weekDates = getWeekDates(current).map((date) => formatDateKey(date));
+    const weekSet = new Set(weekDates);
+    return state.schedules
+      .filter((item) => weekSet.has(formatDateKey(parseEventStart(item))))
+      .sort(compareByTime);
+  }
+
+  return state.schedules
+    .filter((item) => {
+      const eventDate = parseEventStart(item);
+      return eventDate.getFullYear() === year && eventDate.getMonth() === month;
+    })
+    .sort(compareByTime);
+}
+
+function getCompletionStats(items) {
+  const now = new Date();
+  const completed = items.filter((item) => parseEventEnd(item) < now).length;
+  return {
+    total: items.length,
+    completed,
+    remaining: Math.max(items.length - completed, 0),
+  };
+}
+
+function formatDateTime(date) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function renderInfoSidebar(items) {
+  const stats = getCompletionStats(items);
+  infoTotal.textContent = `${stats.total}`;
+  infoCompleted.textContent = `${stats.completed}`;
+  infoRemaining.textContent = `${stats.remaining}`;
+
+  const now = new Date();
+  const nextItem = items
+    .filter((item) => parseEventStart(item) >= now)
+    .sort(compareByTime)[0];
+
+  if (!nextItem) {
+    nextUpcomingDetail.classList.add("hidden");
+    nextUpcomingEmpty.classList.remove("hidden");
+    return;
+  }
+
+  const start = parseEventStart(nextItem);
+  const end = parseEventEnd(nextItem);
+  nextUpcomingTitle.textContent = nextItem.title;
+  nextUpcomingTime.textContent = `时间：${formatDateTime(start)} - ${formatDateTime(end)}`;
+  nextUpcomingLocation.textContent = `地点：${nextItem.location || "未设置地点"}`;
+  nextUpcomingEmpty.classList.add("hidden");
+  nextUpcomingDetail.classList.remove("hidden");
+}
+
+function renderCalendarRangeLabel() {
+  const current = state.currentDate;
+  if (state.viewMode === "day") {
+    calendarRangeLabel.textContent = `日视图：${new Intl.DateTimeFormat("zh-CN", { dateStyle: "full" }).format(current)}`;
+    return;
+  }
+
+  if (state.viewMode === "week") {
+    const weekDates = getWeekDates(current);
+    const first = weekDates[0];
+    const last = weekDates[6];
+    calendarRangeLabel.textContent = `周视图：${formatRangeDate(first)} - ${formatRangeDate(last)}`;
+    return;
+  }
+
+  calendarRangeLabel.textContent = `月视图：${current.getFullYear()}年${`${current.getMonth() + 1}`.padStart(2, "0")}月`;
+}
+
+function renderEventSummary(item) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "week-event-summary";
+
+  const start = parseEventStart(item);
+  const end = parseEventEnd(item);
+  const time = document.createElement("p");
+  time.className = "week-event-time";
+  time.textContent = `${`${start.getHours()}`.padStart(2, "0")}:${`${start.getMinutes()}`.padStart(2, "0")} - ${`${end.getHours()}`.padStart(2, "0")}:${`${end.getMinutes()}`.padStart(2, "0")}`;
+
+  const title = document.createElement("p");
+  title.className = "week-event-title";
+  title.textContent = item.title;
+
+  const location = document.createElement("p");
+  location.className = "week-event-location";
+  location.textContent = item.location || "未设置地点";
+
+  wrapper.append(time, title, location);
+  return wrapper;
+}
+
+function renderWeekView() {
+  const weekDates = getWeekDates(state.currentDate);
+  const weekView = document.createElement("div");
+  weekView.className = "week-view";
+
+  const weekHeader = document.createElement("div");
+  weekHeader.className = "week-grid week-grid-header";
+
+  const weekBody = document.createElement("div");
+  weekBody.className = "week-grid week-grid-body";
+
+  weekDates.forEach((date) => {
+    const headerCell = document.createElement("div");
+    headerCell.className = "week-day-header-cell";
+    headerCell.textContent = formatRangeDate(date);
+    weekHeader.appendChild(headerCell);
+
+    const dayCard = document.createElement("li");
+    dayCard.className = "week-day-card";
+
+    const events = getEventsForDate(date);
+    const eventContainer = document.createElement("div");
+    eventContainer.className = "week-day-events";
+
+    if (events.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "week-day-empty";
+      empty.textContent = "无日程";
+      eventContainer.appendChild(empty);
+    } else {
+      events.forEach((item) => {
+        eventContainer.appendChild(renderEventSummary(item));
+      });
+    }
+
+    dayCard.appendChild(eventContainer);
+    weekBody.appendChild(dayCard);
+  });
+
+  weekView.append(weekHeader, weekBody);
+  scheduleList.appendChild(weekView);
+}
+
+function getMonthDates(date) {
+  const current = normalizeDate(date);
+  const monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
+  const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+  const calendarStart = getWeekStart(monthStart);
+  const calendarEnd = getWeekStart(monthEnd);
+  calendarEnd.setDate(calendarEnd.getDate() + 6);
+
+  const dates = [];
+  const pointer = new Date(calendarStart);
+  while (pointer <= calendarEnd) {
+    dates.push(new Date(pointer));
+    pointer.setDate(pointer.getDate() + 1);
+  }
+  return dates;
+}
+
+function renderMonthDaySummary(events) {
+  const summary = document.createElement("div");
+  summary.className = "month-day-summary";
+
+  if (events.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "month-day-empty";
+    empty.textContent = "无日程";
+    summary.appendChild(empty);
+    return summary;
+  }
+
+  const count = document.createElement("p");
+  count.className = "month-day-count";
+  count.textContent = `共 ${events.length} 项`;
+  summary.appendChild(count);
+
+  events.slice(0, 2).forEach((item) => {
+    const start = parseEventStart(item);
+    const event = document.createElement("p");
+    event.className = "month-day-item";
+    event.textContent = `${`${start.getHours()}`.padStart(2, "0")}:${`${start.getMinutes()}`.padStart(2, "0")} ${item.title}`;
+    summary.appendChild(event);
+  });
+
+  if (events.length > 2) {
+    const more = document.createElement("p");
+    more.className = "month-day-more";
+    more.textContent = `+${events.length - 2} 项`;
+    summary.appendChild(more);
+  }
+
+  return summary;
+}
+
+function renderMonthView() {
+  const current = state.currentDate;
+  const monthDates = getMonthDates(current);
+  const monthView = document.createElement("div");
+  monthView.className = "month-view";
+
+  const weekdayLabels = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+  const monthHeader = document.createElement("div");
+  monthHeader.className = "month-grid month-grid-header";
+  weekdayLabels.forEach((label) => {
+    const cell = document.createElement("div");
+    cell.className = "month-header-cell";
+    cell.textContent = label;
+    monthHeader.appendChild(cell);
+  });
+
+  const monthBody = document.createElement("div");
+  monthBody.className = "month-grid month-grid-body";
+
+  monthDates.forEach((date) => {
+    const dayCell = document.createElement("div");
+    dayCell.className = "month-day-cell";
+
+    if (date.getMonth() !== current.getMonth()) {
+      dayCell.classList.add("outside-month");
+    }
+
+    if (formatDateKey(date) === formatDateKey(new Date())) {
+      dayCell.classList.add("is-today");
+    }
+
+    const dayNumber = document.createElement("p");
+    dayNumber.className = "month-day-number";
+    dayNumber.textContent = `${date.getDate()}`;
+
+    dayCell.append(dayNumber, renderMonthDaySummary(getEventsForDate(date)));
+    monthBody.appendChild(dayCell);
+  });
+
+  monthView.append(monthHeader, monthBody);
+  scheduleList.appendChild(monthView);
+}
+
+function renderListView(items) {
+  if (items.length === 0) {
     const empty = document.createElement("li");
     empty.className = "schedule-item";
-    empty.textContent = "暂无日程，请在左侧新增。";
+    empty.textContent = "当前视图暂无日程，请在左侧新增。";
     scheduleList.appendChild(empty);
     return;
   }
 
-  state.schedules.forEach((item) => {
+  items.forEach((item) => {
     const li = document.createElement("li");
     li.className = "schedule-item";
 
@@ -170,6 +502,57 @@ const renderSchedules = () => {
     li.append(title, time, location, description, recurrence, meta, actions);
     scheduleList.appendChild(li);
   });
+}
+
+const renderSchedules = () => {
+  scheduleList.innerHTML = "";
+  renderCalendarRangeLabel();
+
+  const items = getEventsForCurrentRange();
+  renderInfoSidebar(items);
+
+  if (state.viewMode === "week") {
+    renderWeekView();
+    return;
+  }
+
+  if (state.viewMode === "month") {
+    renderMonthView();
+    return;
+  }
+
+  renderListView(items);
+};
+
+function updateViewButtons() {
+  dayViewButton.classList.toggle("active", state.viewMode === "day");
+  weekViewButton.classList.toggle("active", state.viewMode === "week");
+  monthViewButton.classList.toggle("active", state.viewMode === "month");
+}
+
+function switchView(viewMode) {
+  state.viewMode = viewMode;
+  window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
+  updateViewButtons();
+  renderSchedules();
+}
+
+function moveRange(direction) {
+  if (state.viewMode === "day") {
+    state.currentDate.setDate(state.currentDate.getDate() + direction);
+  } else if (state.viewMode === "week") {
+    state.currentDate.setDate(state.currentDate.getDate() + 7 * direction);
+  } else {
+    state.currentDate.setMonth(state.currentDate.getMonth() + direction);
+  }
+  state.currentDate = normalizeDate(state.currentDate);
+  renderSchedules();
+}
+
+const loadSchedules = async () => {
+  const data = await request("/api/events");
+  state.schedules = data.items || [];
+  renderSchedules();
 };
 
 const deleteSchedule = async (id) => {
@@ -269,6 +652,16 @@ scheduleForm.addEventListener("submit", async (event) => {
 scheduleForm.recurrence_frequency.addEventListener("change", refreshRecurrenceFields);
 scheduleForm.recurrence_end_type.addEventListener("change", refreshRecurrenceFields);
 
+dayViewButton.addEventListener("click", () => switchView("day"));
+weekViewButton.addEventListener("click", () => switchView("week"));
+monthViewButton.addEventListener("click", () => switchView("month"));
+previousRangeButton.addEventListener("click", () => moveRange(-1));
+nextRangeButton.addEventListener("click", () => moveRange(1));
+todayRangeButton.addEventListener("click", () => {
+  state.currentDate = normalizeDate(new Date());
+  renderSchedules();
+});
+
 resetButton.addEventListener("click", () => {
   setEditing();
   setMessage(formMessage, "");
@@ -288,13 +681,15 @@ adminLink.addEventListener("click", () => {
 
 const initialize = async () => {
   setEditing();
+  updateViewButtons();
+  renderCalendarRangeLabel();
   try {
     const data = await request("/session");
     if (data.username) {
       loginSection.classList.add("hidden");
       appSection.classList.remove("hidden");
       welcome.textContent = `欢迎，${data.username}`;
-    adminLink.classList.toggle("hidden", !data.is_admin);
+      adminLink.classList.toggle("hidden", !data.is_admin);
       await loadSchedules();
     }
   } catch (error) {
