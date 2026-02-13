@@ -22,6 +22,14 @@ const previousRangeButton = document.getElementById("previous-range");
 const nextRangeButton = document.getElementById("next-range");
 const todayRangeButton = document.getElementById("today-range");
 const calendarRangeLabel = document.getElementById("calendar-range-label");
+const infoTotal = document.getElementById("info-total");
+const infoCompleted = document.getElementById("info-completed");
+const infoRemaining = document.getElementById("info-remaining");
+const nextUpcomingEmpty = document.getElementById("next-upcoming-empty");
+const nextUpcomingDetail = document.getElementById("next-upcoming-detail");
+const nextUpcomingTitle = document.getElementById("next-upcoming-title");
+const nextUpcomingTime = document.getElementById("next-upcoming-time");
+const nextUpcomingLocation = document.getElementById("next-upcoming-location");
 const VIEW_MODE_STORAGE_KEY = "calendar-secretary-view-mode";
 const AVAILABLE_VIEW_MODES = new Set(["day", "week", "month"]);
 
@@ -219,6 +227,52 @@ function getEventsForCurrentRange() {
       return eventDate.getFullYear() === year && eventDate.getMonth() === month;
     })
     .sort(compareByTime);
+}
+
+function getCompletionStats(items) {
+  const now = new Date();
+  const completed = items.filter((item) => parseEventEnd(item) < now).length;
+  return {
+    total: items.length,
+    completed,
+    remaining: Math.max(items.length - completed, 0),
+  };
+}
+
+function formatDateTime(date) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function renderInfoSidebar(items) {
+  const stats = getCompletionStats(items);
+  infoTotal.textContent = `${stats.total}`;
+  infoCompleted.textContent = `${stats.completed}`;
+  infoRemaining.textContent = `${stats.remaining}`;
+
+  const now = new Date();
+  const nextItem = items
+    .filter((item) => parseEventStart(item) >= now)
+    .sort(compareByTime)[0];
+
+  if (!nextItem) {
+    nextUpcomingDetail.classList.add("hidden");
+    nextUpcomingEmpty.classList.remove("hidden");
+    return;
+  }
+
+  const start = parseEventStart(nextItem);
+  const end = parseEventEnd(nextItem);
+  nextUpcomingTitle.textContent = nextItem.title;
+  nextUpcomingTime.textContent = `时间：${formatDateTime(start)} - ${formatDateTime(end)}`;
+  nextUpcomingLocation.textContent = `地点：${nextItem.location || "未设置地点"}`;
+  nextUpcomingEmpty.classList.add("hidden");
+  nextUpcomingDetail.classList.remove("hidden");
 }
 
 function renderCalendarRangeLabel() {
@@ -454,6 +508,9 @@ const renderSchedules = () => {
   scheduleList.innerHTML = "";
   renderCalendarRangeLabel();
 
+  const items = getEventsForCurrentRange();
+  renderInfoSidebar(items);
+
   if (state.viewMode === "week") {
     renderWeekView();
     return;
@@ -464,7 +521,6 @@ const renderSchedules = () => {
     return;
   }
 
-  const items = getEventsForCurrentRange();
   renderListView(items);
 };
 

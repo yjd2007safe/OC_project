@@ -145,6 +145,67 @@ button.secondary:hover {
   gap: 12px;
 }
 
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 16px;
+  align-items: start;
+}
+
+.info-sidebar {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.info-sidebar h4,
+.next-upcoming-card h5 {
+  margin: 0 0 10px;
+}
+
+.info-stats {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.info-stat-item {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.info-stat-item dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.info-stat-item dd {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.next-upcoming-card {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.next-upcoming-detail p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.next-upcoming-title {
+  color: var(--text) !important;
+  font-weight: 600;
+}
+
 .schedule-item {
   padding: 12px;
   border-radius: 12px;
@@ -403,5 +464,9 @@ button.secondary:hover {
   .calendar-controls {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .calendar-layout {
+    grid-template-columns: 1fr;
   }
 }
