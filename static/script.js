@@ -22,11 +22,21 @@ const previousRangeButton = document.getElementById("previous-range");
 const nextRangeButton = document.getElementById("next-range");
 const todayRangeButton = document.getElementById("today-range");
 const calendarRangeLabel = document.getElementById("calendar-range-label");
+const VIEW_MODE_STORAGE_KEY = "calendar-secretary-view-mode";
+const AVAILABLE_VIEW_MODES = new Set(["day", "week", "month"]);
+
+function getInitialViewMode() {
+  const storedMode = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+  if (storedMode && AVAILABLE_VIEW_MODES.has(storedMode)) {
+    return storedMode;
+  }
+  return "week";
+}
 
 const state = {
   schedules: [],
   editingId: null,
-  viewMode: "week",
+  viewMode: getInitialViewMode(),
   currentDate: normalizeDate(new Date()),
 };
 
@@ -253,16 +263,23 @@ function renderEventSummary(item) {
 
 function renderWeekView() {
   const weekDates = getWeekDates(state.currentDate);
-  const weekGrid = document.createElement("div");
-  weekGrid.className = "week-grid";
+  const weekView = document.createElement("div");
+  weekView.className = "week-view";
+
+  const weekHeader = document.createElement("div");
+  weekHeader.className = "week-grid week-grid-header";
+
+  const weekBody = document.createElement("div");
+  weekBody.className = "week-grid week-grid-body";
 
   weekDates.forEach((date) => {
+    const headerCell = document.createElement("div");
+    headerCell.className = "week-day-header-cell";
+    headerCell.textContent = formatRangeDate(date);
+    weekHeader.appendChild(headerCell);
+
     const dayCard = document.createElement("li");
     dayCard.className = "week-day-card";
-
-    const header = document.createElement("div");
-    header.className = "week-day-header";
-    header.textContent = formatRangeDate(date);
 
     const events = getEventsForDate(date);
     const eventContainer = document.createElement("div");
@@ -279,11 +296,107 @@ function renderWeekView() {
       });
     }
 
-    dayCard.append(header, eventContainer);
-    weekGrid.appendChild(dayCard);
+    dayCard.appendChild(eventContainer);
+    weekBody.appendChild(dayCard);
   });
 
-  scheduleList.appendChild(weekGrid);
+  weekView.append(weekHeader, weekBody);
+  scheduleList.appendChild(weekView);
+}
+
+function getMonthDates(date) {
+  const current = normalizeDate(date);
+  const monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
+  const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+  const calendarStart = getWeekStart(monthStart);
+  const calendarEnd = getWeekStart(monthEnd);
+  calendarEnd.setDate(calendarEnd.getDate() + 6);
+
+  const dates = [];
+  const pointer = new Date(calendarStart);
+  while (pointer <= calendarEnd) {
+    dates.push(new Date(pointer));
+    pointer.setDate(pointer.getDate() + 1);
+  }
+  return dates;
+}
+
+function renderMonthDaySummary(events) {
+  const summary = document.createElement("div");
+  summary.className = "month-day-summary";
+
+  if (events.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "month-day-empty";
+    empty.textContent = "无日程";
+    summary.appendChild(empty);
+    return summary;
+  }
+
+  const count = document.createElement("p");
+  count.className = "month-day-count";
+  count.textContent = `共 ${events.length} 项`;
+  summary.appendChild(count);
+
+  events.slice(0, 2).forEach((item) => {
+    const start = parseEventStart(item);
+    const event = document.createElement("p");
+    event.className = "month-day-item";
+    event.textContent = `${`${start.getHours()}`.padStart(2, "0")}:${`${start.getMinutes()}`.padStart(2, "0")} ${item.title}`;
+    summary.appendChild(event);
+  });
+
+  if (events.length > 2) {
+    const more = document.createElement("p");
+    more.className = "month-day-more";
+    more.textContent = `+${events.length - 2} 项`;
+    summary.appendChild(more);
+  }
+
+  return summary;
+}
+
+function renderMonthView() {
+  const current = state.currentDate;
+  const monthDates = getMonthDates(current);
+  const monthView = document.createElement("div");
+  monthView.className = "month-view";
+
+  const weekdayLabels = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+  const monthHeader = document.createElement("div");
+  monthHeader.className = "month-grid month-grid-header";
+  weekdayLabels.forEach((label) => {
+    const cell = document.createElement("div");
+    cell.className = "month-header-cell";
+    cell.textContent = label;
+    monthHeader.appendChild(cell);
+  });
+
+  const monthBody = document.createElement("div");
+  monthBody.className = "month-grid month-grid-body";
+
+  monthDates.forEach((date) => {
+    const dayCell = document.createElement("div");
+    dayCell.className = "month-day-cell";
+
+    if (date.getMonth() !== current.getMonth()) {
+      dayCell.classList.add("outside-month");
+    }
+
+    if (formatDateKey(date) === formatDateKey(new Date())) {
+      dayCell.classList.add("is-today");
+    }
+
+    const dayNumber = document.createElement("p");
+    dayNumber.className = "month-day-number";
+    dayNumber.textContent = `${date.getDate()}`;
+
+    dayCell.append(dayNumber, renderMonthDaySummary(getEventsForDate(date)));
+    monthBody.appendChild(dayCell);
+  });
+
+  monthView.append(monthHeader, monthBody);
+  scheduleList.appendChild(monthView);
 }
 
 function renderListView(items) {
@@ -346,6 +459,11 @@ const renderSchedules = () => {
     return;
   }
 
+  if (state.viewMode === "month") {
+    renderMonthView();
+    return;
+  }
+
   const items = getEventsForCurrentRange();
   renderListView(items);
 };
@@ -358,6 +476,7 @@ function updateViewButtons() {
 
 function switchView(viewMode) {
   state.viewMode = viewMode;
+  window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
   updateViewButtons();
   renderSchedules();
 }
