@@ -192,6 +192,15 @@ def _parse_event_time(value: str) -> datetime:
         raise ValueError("time must be YYYY-MM-DDTHH:MM")
 
 
+def _parse_event_or_date(value: str, is_end: bool = False) -> datetime:
+    if "T" in (value or ""):
+        return _parse_event_time(value)
+    date_only = _parse_date(value)
+    if is_end:
+        return date_only.replace(hour=23, minute=59)
+    return date_only.replace(hour=0, minute=0)
+
+
 def _resolve_event_range(start_value: str, end_value: Optional[str]) -> tuple[datetime, datetime]:
     start_at = _parse_event_time(start_value)
     if end_value:
@@ -539,8 +548,8 @@ def _list_events(username: str):
 
     start_raw = request.args.get("start")
     end_raw = request.args.get("end")
-    query_start = _parse_event_time(start_raw) if start_raw else None
-    query_end = _parse_event_time(end_raw) if end_raw else None
+    query_start = _parse_event_or_date(start_raw) if start_raw else None
+    query_end = _parse_event_or_date(end_raw, is_end=True) if end_raw else None
     occurrences: list[Dict[str, Any]] = []
     for item in data["items"]:
         occurrences.extend(_build_occurrences(item, query_start, query_end))
@@ -552,9 +561,12 @@ def _create_event(username: str):
     data = _load_schedule(username)
     payload = request.get_json(force=True)
 
-    required = ["title", "time", "location", "description"]
+    required = ["title", "time", "location"]
     if not all(payload.get(field) for field in required):
-        return jsonify({"message": "All fields are required"}), 400
+        return jsonify({"message": "title, time and location are required"}), 400
+
+    if "description" not in payload:
+        return jsonify({"message": "description field is required"}), 400
 
     try:
         start_at, end_at = _resolve_event_range(payload["time"], payload.get("end_time"))
