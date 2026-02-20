@@ -1,0 +1,130 @@
+
+
++===========================================================================================================================================================================================+
+
+
+DEPRECATED: this command (`check`) has been DEPRECATED, and will be unsupported beyond 01 June 2024.
+
+
+We highly encourage switching to the new `scan` command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.
+
+
++===========================================================================================================================================================================================+
+
+
+{
+    "report_meta": {
+        "scan_target": "files",
+        "scanned": [
+            "requirements.txt"
+        ],
+        "scanned_full_path": [
+            "/home/oc/.openclaw/workspace/OC_project/requirements.txt"
+        ],
+        "target_languages": [
+            "python"
+        ],
+        "policy_file": null,
+        "policy_file_source": "local",
+        "audit_and_monitor": false,
+        "api_key": false,
+        "account": "",
+        "local_database_path": null,
+        "safety_version": "3.6.2",
+        "timestamp": "2026-02-20 16:50:40",
+        "packages_found": 2,
+        "vulnerabilities_found": 0,
+        "vulnerabilities_ignored": 0,
+        "remediations_recommended": 0,
+        "telemetry": {
+            "safety_options": {
+                "files": {
+                    "-r": 1
+                },
+                "json": {
+                    "--json": 1
+                }
+            },
+            "safety_version": "3.6.2",
+            "safety_source": "cli",
+            "os_type": "Linux",
+            "os_release": "4.4.0-18362-Microsoft",
+            "os_description": "Linux-4.4.0-18362-Microsoft-x86_64-with-glibc2.29",
+            "python_version": "3.8.10",
+            "safety_command": "check"
+        },
+        "git": {
+            "branch": "wip/oc_project-register-500-fix-20260220",
+            "tag": "",
+            "commit": "8a0e35828e70f6daafbe92852ca78173d320b399",
+            "dirty": "True",
+            "origin": "https://github.com/yjd2007safe/OC_project.git"
+        },
+        "project": null,
+        "json_version": "1.1",
+        "remediations_attempted": 0,
+        "remediations_completed": 0,
+        "remediation_mode": "NON_INTERACTIVE"
+    },
+    "scanned_packages": {
+        "pytest": {
+            "name": "pytest",
+            "version": null,
+            "requirements": [
+                {
+                    "raw": "pytest>=7.0.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pytest",
+                    "specifier": ">=7.0.0",
+                    "url": null,
+                    "found": "/home/oc/.openclaw/workspace/OC_project/requirements.txt"
+                }
+            ]
+        },
+        "pytest-cov": {
+            "name": "pytest-cov",
+            "version": null,
+            "requirements": [
+                {
+                    "raw": "pytest-cov>=4.0.0",
+                    "extras": [],
+                    "marker": null,
+                    "name": "pytest-cov",
+                    "specifier": ">=4.0.0",
+                    "url": null,
+                    "found": "/home/oc/.openclaw/workspace/OC_project/requirements.txt"
+                }
+            ]
+        }
+    },
+    "affected_packages": {},
+    "announcements": [
+        {
+            "type": "warning",
+            "message": "Warning: pytest and pytest-cov are unpinned. Safety by default does not report on potential vulnerabilities in unpinned packages. It is recommended to pin your dependencies unless this is a library meant for distribution. To learn more about reporting these, specifier range handling, and options for scanning unpinned packages visit https://docs.pyup.io/docs/safety-range-specs"
+        }
+    ],
+    "vulnerabilities": [],
+    "ignored_vulnerabilities": [],
+    "remediations": {},
+    "remediations_results": {
+        "vulnerabilities_fixed": [],
+        "remediations_applied": {},
+        "remediations_skipped": {}
+    }
+}
+
+
++===========================================================================================================================================================================================+
+
+
+DEPRECATED: this command (`check`) has been DEPRECATED, and will be unsupported beyond 01 June 2024.
+
+
+We highly encourage switching to the new `scan` command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.
+
+
++===========================================================================================================================================================================================+
+
+
