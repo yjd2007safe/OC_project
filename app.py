@@ -25,10 +25,14 @@ from flask import (
 )
 from werkzeug.exceptions import BadRequest
 
+from storage import DatabaseStorage, StorageConfigError
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SCHEDULE_DIR = os.path.join(DATA_DIR, "schedules")
+
+_STORAGE: Optional[DatabaseStorage] = None
 PASSWORD_ITERATIONS = 260000
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_]{4,20}$")
 PASSWORD_PATTERN = re.compile(r"^(?=.*[A-Za-z])(?=.*\d).{8,}$")
@@ -52,11 +56,32 @@ class User:
     created_at: str = ""
 
 
+def _get_storage() -> DatabaseStorage:
+    global _STORAGE
+    if _STORAGE is None:
+        _STORAGE = DatabaseStorage()
+        _STORAGE.init_schema()
+    return _STORAGE
+
+
+def _serialize_users(users: Dict[str, User]) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+    for username, user in users.items():
+        payload[username] = {
+            "password": {
+                "salt": base64.b64encode(user.password_salt).decode("utf-8"),
+                "iterations": user.iterations,
+                "hash": base64.b64encode(user.password_hash).decode("utf-8"),
+            },
+            "api_key": user.api_key,
+            "enabled": user.enabled,
+            "created_at": user.created_at,
+        }
+    return payload
+
+
 def _load_users() -> Dict[str, User]:
-    if not os.path.exists(USERS_FILE):
-        return {}
-    with open(USERS_FILE, "r", encoding="utf-8") as handle:
-        raw = json.load(handle)
+    raw = _get_storage().load_users()
     users: Dict[str, User] = {}
     for username, payload in raw.items():
         password = payload["password"]
@@ -73,21 +98,7 @@ def _load_users() -> Dict[str, User]:
 
 
 def _save_users(users: Dict[str, User]) -> None:
-    os.makedirs(DATA_DIR, exist_ok=True)
-    payload: Dict[str, Any] = {}
-    for username, user in users.items():
-        payload[username] = {
-            "password": {
-                "salt": base64.b64encode(user.password_salt).decode("utf-8"),
-                "iterations": user.iterations,
-                "hash": base64.b64encode(user.password_hash).decode("utf-8"),
-            },
-            "api_key": user.api_key,
-            "enabled": user.enabled,
-            "created_at": user.created_at,
-        }
-    with open(USERS_FILE, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2)
+    _get_storage().save_users(_serialize_users(users))
 
 
 def _hash_password(password: str) -> tuple[bytes, bytes]:
@@ -129,19 +140,11 @@ def _get_schedule_path(username: str) -> str:
 
 
 def _load_schedule(username: str) -> Dict[str, Any]:
-    os.makedirs(SCHEDULE_DIR, exist_ok=True)
-    path = _get_schedule_path(username)
-    if not os.path.exists(path):
-        return {"next_id": 1, "items": []}
-    with open(path, "r", encoding="utf-8") as handle:
-        return json.load(handle)
+    return _get_storage().load_schedule(username)
 
 
 def _save_schedule(username: str, data: Dict[str, Any]) -> None:
-    os.makedirs(SCHEDULE_DIR, exist_ok=True)
-    path = _get_schedule_path(username)
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, ensure_ascii=False, indent=2)
+    _get_storage().save_schedule(username, data)
 
 
 def _get_user_from_api_key(api_key: str) -> Optional[str]:
@@ -472,6 +475,11 @@ def require_admin(func):
     return wrapper
 
 
+@app.errorhandler(StorageConfigError)
+def handle_storage_config_error(error: StorageConfigError):
+    return jsonify({"message": str(error), "error": "database_not_configured"}), 503
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -521,20 +529,10 @@ def register():
 
     try:
         users = _load_users()
-    except json.JSONDecodeError:
-        app.logger.exception("Failed to decode users JSON file during registration: path=%s", USERS_FILE)
-        return jsonify({
-            "message": "Registration failed due to user data file format error",
-            "error": "users_json_decode_error",
-        }), 500
-    except PermissionError:
-        app.logger.exception("Permission denied while reading users file during registration: path=%s", USERS_FILE)
-        return jsonify({
-            "message": "Registration failed due to user data access error",
-            "error": "users_file_permission_error",
-        }), 500
+    except StorageConfigError as exc:
+        return jsonify({"message": str(exc), "error": "database_not_configured"}), 503
     except OSError:
-        app.logger.exception("I/O error while reading users file during registration: path=%s", USERS_FILE)
+        app.logger.exception("I/O error while reading users data during registration")
         return jsonify({
             "message": "Registration failed due to user data storage error",
             "error": "users_file_io_error",
@@ -559,9 +557,7 @@ def register():
         _save_schedule(username, {"next_id": 1, "items": []})
     except PermissionError:
         app.logger.exception(
-            "Permission denied while writing registration files: users_path=%s schedule_dir=%s username=%s",
-            USERS_FILE,
-            SCHEDULE_DIR,
+            "Permission denied while writing registration files: username=%s",
             username,
         )
         return jsonify({
@@ -570,9 +566,7 @@ def register():
         }), 500
     except OSError:
         app.logger.exception(
-            "I/O error while writing registration files: users_path=%s schedule_dir=%s username=%s",
-            USERS_FILE,
-            SCHEDULE_DIR,
+            "I/O error while writing registration files: username=%s",
             username,
         )
         return jsonify({
@@ -640,8 +634,7 @@ def _create_event(username: str):
     if conflict:
         return jsonify({"message": f"Time conflict with event #{conflict['id']}: {conflict['title']}"}), 409
 
-    item = {
-        "id": data["next_id"],
+    item_payload = {
         "title": payload["title"],
         "time": payload["time"],
         "end_time": end_at.strftime("%Y-%m-%dT%H:%M"),
@@ -650,9 +643,7 @@ def _create_event(username: str):
         "recurrence": recurrence,
         "created_at": _iso_now(),
     }
-    data["next_id"] += 1
-    data["items"].append(item)
-    _save_schedule(username, data)
+    item = _get_storage().create_event(username, item_payload)
 
     day_info = _check_working_hours(start_at)
     if day_info["day_type"] == "workday_lunch":
@@ -795,8 +786,7 @@ def find_and_book_slot(username: str):
         return jsonify({"message": "No available slot found for the requested duration"}), 409
 
     start_at, end_at = slot
-    item = {
-        "id": data["next_id"],
+    item_payload = {
         "title": payload["title"],
         "time": start_at.strftime("%Y-%m-%dT%H:%M"),
         "end_time": end_at.strftime("%Y-%m-%dT%H:%M"),
@@ -805,9 +795,7 @@ def find_and_book_slot(username: str):
         "recurrence": {"frequency": "none", "end_type": "never", "until": None, "count": None},
         "created_at": _iso_now(),
     }
-    data["next_id"] += 1
-    data["items"].append(item)
-    _save_schedule(username, data)
+    item = _get_storage().create_event(username, item_payload)
     return jsonify({"message": "Booked available slot", "item": item}), 201
 
 
@@ -850,9 +838,6 @@ def admin_delete_user(_admin_username: str, username: str):
 
     users.pop(username)
     _save_users(users)
-    schedule_path = _get_schedule_path(username)
-    if os.path.exists(schedule_path):
-        os.remove(schedule_path)
     return jsonify({"message": "User deleted"})
 
 
@@ -915,7 +900,7 @@ def admin_stats(_admin_username: str):
         if created_at and created_at.date() == today:
             today_users += 1
 
-    system_ok = os.path.exists(USERS_FILE) and os.path.isdir(SCHEDULE_DIR)
+    system_ok = True
     return jsonify({
         "total_users": len(users),
         "total_events": total_events,
@@ -931,7 +916,6 @@ def health():
 
 
 if __name__ == "__main__":
-    os.makedirs(SCHEDULE_DIR, exist_ok=True)
     host = os.environ.get("CALENDAR_HOST", "127.0.0.1")
     port = int(os.environ.get("CALENDAR_PORT", "5000"))
     debug_flag = os.environ.get("FLASK_DEBUG", "false").lower() in {"1", "true", "yes"}
