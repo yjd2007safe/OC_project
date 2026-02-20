@@ -14,6 +14,7 @@ def _register_and_login(client, username: str = "itestuser", password: str = "Te
 class TestAuthFlow:
     def test_register_login_and_profile(self, client):
         api_key = _register_and_login(client)
+        client.application.config["PROPAGATE_EXCEPTIONS"] = False
         response = client.get("/api/profile", headers={"X-API-Key": api_key})
         assert response.status_code == 200
         payload = response.get_json()
@@ -102,3 +103,52 @@ class TestConfigAndConcurrency:
         response = client.get("/api/events", headers=headers)
         assert response.status_code == 200
         assert len(response.get_json()["items"]) == 4
+
+
+class TestDatabaseExceptionHandling:
+    def test_register_returns_json_when_storage_layer_raises(self, client, monkeypatch):
+        import app as app_module
+
+        def raise_db_error():
+            raise RuntimeError("psycopg connection failed: postgresql://user:secret@db.example.com/app")
+
+        monkeypatch.setattr(app_module, "_load_users", raise_db_error)
+        client.application.config["PROPAGATE_EXCEPTIONS"] = False
+        response = client.post("/api/register", json={"username": "dbfailuser", "password": "Test1234"})
+
+        assert response.status_code == 500
+        assert response.is_json
+        payload = response.get_json()
+        assert payload == {"message": "Database operation failed", "error": "database_error"}
+
+    def test_login_returns_json_when_storage_layer_raises(self, client, monkeypatch):
+        import app as app_module
+
+        def raise_db_error():
+            raise RuntimeError("psycopg auth failed")
+
+        monkeypatch.setattr(app_module, "_load_users", raise_db_error)
+        client.application.config["PROPAGATE_EXCEPTIONS"] = False
+        response = client.post("/login", json={"username": "demo", "password": "password123"})
+
+        assert response.status_code == 500
+        assert response.is_json
+        payload = response.get_json()
+        assert payload == {"message": "Database operation failed", "error": "database_error"}
+
+    def test_profile_returns_json_when_storage_layer_raises(self, client, monkeypatch):
+        import app as app_module
+
+        api_key = _register_and_login(client, username="dbprofile")
+
+        def raise_db_error():
+            raise RuntimeError("psycopg schema missing")
+
+        monkeypatch.setattr(app_module, "_load_users", raise_db_error)
+        client.application.config["PROPAGATE_EXCEPTIONS"] = False
+        response = client.get("/api/profile", headers={"X-API-Key": api_key})
+
+        assert response.status_code == 500
+        assert response.is_json
+        payload = response.get_json()
+        assert payload == {"message": "Database operation failed", "error": "database_error"}

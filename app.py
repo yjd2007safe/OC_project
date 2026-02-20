@@ -8,6 +8,7 @@ import json
 import os
 import re
 import secrets
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import wraps
@@ -24,6 +25,7 @@ from flask import (
     url_for,
 )
 from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import HTTPException
 
 from storage import DatabaseStorage, StorageConfigError
 
@@ -43,6 +45,8 @@ MAX_OCCURRENCES = 200
 app = Flask(__name__)
 app.secret_key = os.environ.get("CALENDAR_SECRET_KEY", "dev-secret-change-me")
 app.config["JSON_SORT_KEYS"] = False
+JSON_ERROR_PATH_PREFIXES = ("/api/",)
+JSON_ERROR_PATH_EXACT = {"/login"}
 
 
 @dataclass
@@ -62,6 +66,41 @@ def _get_storage() -> DatabaseStorage:
         _STORAGE = DatabaseStorage()
         _STORAGE.init_schema()
     return _STORAGE
+
+
+def _wants_json_error(path: str) -> bool:
+    return path in JSON_ERROR_PATH_EXACT or any(path.startswith(prefix) for prefix in JSON_ERROR_PATH_PREFIXES)
+
+
+def _sanitize_exception_message(message: str) -> str:
+    sanitized = message or ""
+    sanitized = re.sub(r"(postgres(?:ql)?://)([^@\s]+)@", r"\1***@", sanitized, flags=re.IGNORECASE)
+    sanitized = re.sub(r"(SUPABASE_[A-Z_]*|DATABASE_URL)=[^\s]+", r"\1=[REDACTED]", sanitized, flags=re.IGNORECASE)
+    sanitized = re.sub(r"(apikey|api_key|token|password|service_role_key)\s*[=:]\s*[^\s,;]+", r"\1=[REDACTED]", sanitized, flags=re.IGNORECASE)
+    return sanitized
+
+
+def _is_database_exception(error: BaseException) -> bool:
+    if isinstance(error, (StorageConfigError, sqlite3.Error)):
+        return True
+    module_name = error.__class__.__module__.lower()
+    class_name = error.__class__.__name__.lower()
+    message = str(error).lower()
+    return (
+        "psycopg" in module_name
+        or "postgres" in module_name
+        or "database" in class_name
+        or any(token in message for token in ("psycopg", "postgres", "supabase", "sql", "relation"))
+    )
+
+
+def _log_database_exception(error: BaseException) -> None:
+    app.logger.error(
+        "database_exception class=%s message=%s path=%s",
+        error.__class__.__name__,
+        _sanitize_exception_message(str(error)),
+        request.path,
+    )
 
 
 def _serialize_users(users: Dict[str, User]) -> Dict[str, Any]:
@@ -477,7 +516,23 @@ def require_admin(func):
 
 @app.errorhandler(StorageConfigError)
 def handle_storage_config_error(error: StorageConfigError):
-    return jsonify({"message": str(error), "error": "database_not_configured"}), 503
+    _log_database_exception(error)
+    if _wants_json_error(request.path):
+        return jsonify({"message": "Database service is not configured", "error": "database_not_configured"}), 503
+    return "Database service is not configured", 503
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_exception(error: Exception):
+    if isinstance(error, HTTPException):
+        return error
+
+    if _is_database_exception(error):
+        _log_database_exception(error)
+        if _wants_json_error(request.path):
+            return jsonify({"message": "Database operation failed", "error": "database_error"}), 500
+
+    raise error
 
 
 @app.route("/")
@@ -527,16 +582,7 @@ def register():
     if not _validate_password(password):
         return jsonify({"message": "Password must be at least 8 chars and include letters and numbers"}), 400
 
-    try:
-        users = _load_users()
-    except StorageConfigError as exc:
-        return jsonify({"message": str(exc), "error": "database_not_configured"}), 503
-    except OSError:
-        app.logger.exception("I/O error while reading users data during registration")
-        return jsonify({
-            "message": "Registration failed due to user data storage error",
-            "error": "users_file_io_error",
-        }), 500
+    users = _load_users()
 
     if username in users:
         return jsonify({"message": "Username already exists"}), 400
@@ -552,27 +598,8 @@ def register():
         enabled=True,
         created_at=_iso_now(),
     )
-    try:
-        _save_users(users)
-        _save_schedule(username, {"next_id": 1, "items": []})
-    except PermissionError:
-        app.logger.exception(
-            "Permission denied while writing registration files: username=%s",
-            username,
-        )
-        return jsonify({
-            "message": "Registration failed due to data directory permission error",
-            "error": "registration_storage_permission_error",
-        }), 500
-    except OSError:
-        app.logger.exception(
-            "I/O error while writing registration files: username=%s",
-            username,
-        )
-        return jsonify({
-            "message": "Registration failed due to data storage I/O error",
-            "error": "registration_storage_io_error",
-        }), 500
+    _save_users(users)
+    _save_schedule(username, {"next_id": 1, "items": []})
 
     return jsonify({"message": "Registration successful", "username": username, "api_key": api_key}), 201
 
