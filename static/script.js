@@ -62,13 +62,26 @@ const request = async (url, options = {}) => {
     },
     ...options,
   });
-  const data = await response.json().catch(() => ({}));
+
+  const contentType = response.headers.get("content-type") || "";
+  let data = {};
+  let rawText = "";
+
+  if (contentType.includes("application/json")) {
+    data = await response.json().catch(() => ({}));
+  } else {
+    rawText = await response.text().catch(() => "");
+  }
+
   if (!response.ok) {
-    const message = data.message || "请求失败";
+    const textMessage = rawText.trim();
+    const fallback = `请求失败（${response.status}）`;
+    const message = data.message || textMessage || fallback;
     const error = new Error(message);
     error.status = response.status;
     throw error;
   }
+
   return data;
 };
 

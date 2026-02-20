@@ -144,6 +144,31 @@ class TestRegistration:
         })
         assert response.status_code == 400
 
+    def test_register_requires_json_payload(self, client):
+        """测试注册接口要求JSON负载"""
+        response = client.post("/api/register", data="username=testuser")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["message"] == "Request payload must be JSON"
+
+    def test_register_rejects_empty_json_payload(self, client):
+        """测试注册接口拒绝空JSON负载"""
+        response = client.post("/api/register", json={})
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["message"] == "Request JSON body cannot be empty"
+
+    def test_register_rejects_invalid_json_body(self, client):
+        """测试注册接口拒绝无效JSON"""
+        response = client.post(
+            "/api/register",
+            data="{",
+            headers={"Content-Type": "application/json"},
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["message"] == "Request JSON body is required"
+
 
 class TestLogin:
     """用户登录接口测试"""
