@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_salt TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     iterations INTEGER NOT NULL,
-    enabled BOOLEAN NOT NULL DEFAULT 1,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TEXT NOT NULL
 );
 
