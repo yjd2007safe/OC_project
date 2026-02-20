@@ -192,6 +192,16 @@ def _parse_event_time(value: str) -> datetime:
         raise ValueError("time must be YYYY-MM-DDTHH:MM")
 
 
+def _parse_event_or_date(value: str, is_end: bool = False) -> datetime:
+    """Parse datetime string that may omit time part (date-only)."""
+    if "T" in (value or ""):
+        return _parse_event_time(value)
+    date_only = _parse_date(value)
+    if is_end:
+        return date_only.replace(hour=23, minute=59)
+    return date_only.replace(hour=0, minute=0)
+
+
 def _resolve_event_range(start_value: str, end_value: Optional[str]) -> tuple[datetime, datetime]:
     start_at = _parse_event_time(start_value)
     if end_value:
@@ -483,7 +493,17 @@ def login():
 
 @app.route("/api/register", methods=["POST"])
 def register():
-    payload = request.get_json(force=True)
+    if not request.is_json:
+        return jsonify({"message": "Request payload must be JSON"}), 400
+
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"message": "Request JSON body is required"}), 400
+    if not isinstance(payload, dict):
+        return jsonify({"message": "Invalid request payload"}), 400
+    if not payload:
+        return jsonify({"message": "Request JSON body cannot be empty"}), 400
+
     username = (payload.get("username") or "").strip()
     password = payload.get("password") or ""
 
@@ -539,8 +559,8 @@ def _list_events(username: str):
 
     start_raw = request.args.get("start")
     end_raw = request.args.get("end")
-    query_start = _parse_event_time(start_raw) if start_raw else None
-    query_end = _parse_event_time(end_raw) if end_raw else None
+    query_start = _parse_event_or_date(start_raw) if start_raw else None
+    query_end = _parse_event_or_date(end_raw, is_end=True) if end_raw else None
     occurrences: list[Dict[str, Any]] = []
     for item in data["items"]:
         occurrences.extend(_build_occurrences(item, query_start, query_end))
@@ -552,9 +572,12 @@ def _create_event(username: str):
     data = _load_schedule(username)
     payload = request.get_json(force=True)
 
-    required = ["title", "time", "location", "description"]
+    required = ["title", "time", "location"]
     if not all(payload.get(field) for field in required):
-        return jsonify({"message": "All fields are required"}), 400
+        return jsonify({"message": "title, time and location are required"}), 400
+
+    if "description" not in payload:
+        return jsonify({"message": "description field is required"}), 400
 
     try:
         start_at, end_at = _resolve_event_range(payload["time"], payload.get("end_time"))
@@ -858,4 +881,7 @@ def health():
 
 if __name__ == "__main__":
     os.makedirs(SCHEDULE_DIR, exist_ok=True)
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    host = os.environ.get("CALENDAR_HOST", "127.0.0.1")
+    port = int(os.environ.get("CALENDAR_PORT", "5000"))
+    debug_flag = os.environ.get("FLASK_DEBUG", "false").lower() in {"1", "true", "yes"}
+    app.run(host=host, port=port, debug=debug_flag)
