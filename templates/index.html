@@ -129,8 +129,49 @@
         </form>
 
         <div class="panel">
-          <h3>日程列表</h3>
-          <ul id="schedule-list" class="schedule-list"></ul>
+          <div class="calendar-controls">
+            <div class="view-switches" role="group" aria-label="切换日历视图">
+              <button id="view-day" class="secondary" type="button">日</button>
+              <button id="view-week" class="secondary" type="button">周</button>
+              <button id="view-month" class="secondary" type="button">月</button>
+            </div>
+            <div class="range-controls" role="group" aria-label="日历范围导航">
+              <button id="previous-range" class="secondary" type="button">上一段</button>
+              <button id="today-range" class="secondary" type="button">今天</button>
+              <button id="next-range" class="secondary" type="button">下一段</button>
+            </div>
+          </div>
+          <h3 id="calendar-range-label">日程列表</h3>
+          <div class="calendar-layout">
+            <ul id="schedule-list" class="schedule-list"></ul>
+            <aside class="info-sidebar" aria-label="当前视图日程信息">
+              <h4>视图统计</h4>
+              <dl class="info-stats">
+                <div class="info-stat-item">
+                  <dt>总日程</dt>
+                  <dd id="info-total">0</dd>
+                </div>
+                <div class="info-stat-item">
+                  <dt>已完成</dt>
+                  <dd id="info-completed">0</dd>
+                </div>
+                <div class="info-stat-item">
+                  <dt>未完成</dt>
+                  <dd id="info-remaining">0</dd>
+                </div>
+              </dl>
+
+              <div class="next-upcoming-card">
+                <h5>下一项日程</h5>
+                <p id="next-upcoming-empty" class="helper">当前范围没有即将开始的日程。</p>
+                <div id="next-upcoming-detail" class="next-upcoming-detail hidden">
+                  <p id="next-upcoming-title" class="next-upcoming-title"></p>
+                  <p id="next-upcoming-time"></p>
+                  <p id="next-upcoming-location"></p>
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
       </div>
     </section>
