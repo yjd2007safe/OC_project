@@ -492,7 +492,12 @@ def login():
 
 @app.route("/api/register", methods=["POST"])
 def register():
-    payload = request.get_json(force=True)
+    payload = request.get_json(silent=True)
+    if payload is None:
+        payload = request.form.to_dict() if request.form else {}
+    if not isinstance(payload, dict):
+        return jsonify({"message": "Invalid request payload"}), 400
+
     username = (payload.get("username") or "").strip()
     password = payload.get("password") or ""
 
