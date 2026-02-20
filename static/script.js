@@ -74,8 +74,9 @@ const request = async (url, options = {}) => {
   }
 
   if (!response.ok) {
-    const fallback = rawText ? `请求失败（${response.status}）` : "请求失败";
-    const message = data.message || fallback;
+    const textMessage = rawText.trim();
+    const fallback = `请求失败（${response.status}）`;
+    const message = data.message || textMessage || fallback;
     const error = new Error(message);
     error.status = response.status;
     throw error;
