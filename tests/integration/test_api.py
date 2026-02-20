@@ -167,7 +167,7 @@ class TestRegistration:
         )
         assert response.status_code == 400
         data = response.get_json()
-        assert data["message"] == "Request JSON body is required"
+        assert data["message"] == "Request JSON body is invalid"
 
 
     def test_register_non_json_payload(self, client):
