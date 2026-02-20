@@ -203,6 +203,45 @@ class TestRegistration:
         data = response.get_json()
         assert data["message"] == "Request JSON body is invalid"
 
+    def test_register_returns_json_when_users_file_decode_fails(self, client, monkeypatch):
+        """测试 users.json 解码失败时返回结构化 JSON 错误"""
+        def mock_load_users():
+            raise json.JSONDecodeError("invalid json", "{", 0)
+
+        monkeypatch.setattr("app._load_users", mock_load_users)
+
+        response = client.post("/api/register", json={"username": "jsonerr", "password": "Test1234"})
+        assert response.status_code == 500
+        data = response.get_json()
+        assert data["error"] == "users_json_decode_error"
+        assert "Registration failed" in data["message"]
+
+    def test_register_returns_json_when_users_file_write_permission_denied(self, client, monkeypatch):
+        """测试 users 文件写入权限错误时返回结构化 JSON 错误"""
+        def mock_save_users(_users):
+            raise PermissionError("permission denied")
+
+        monkeypatch.setattr("app._save_users", mock_save_users)
+
+        response = client.post("/api/register", json={"username": "permerr", "password": "Test1234"})
+        assert response.status_code == 500
+        data = response.get_json()
+        assert data["error"] == "registration_storage_permission_error"
+        assert "permission" in data["message"]
+
+    def test_register_returns_json_when_schedule_dir_write_fails(self, client, monkeypatch):
+        """测试日程目录写入异常时返回结构化 JSON 错误"""
+        def mock_save_schedule(_username, _data):
+            raise OSError("disk io error")
+
+        monkeypatch.setattr("app._save_schedule", mock_save_schedule)
+
+        response = client.post("/api/register", json={"username": "ioerr", "password": "Test1234"})
+        assert response.status_code == 500
+        data = response.get_json()
+        assert data["error"] == "registration_storage_io_error"
+        assert "I/O" in data["message"]
+
 
 class TestLogin:
     """用户登录接口测试"""
