@@ -519,7 +519,27 @@ def register():
     if not _validate_password(password):
         return jsonify({"message": "Password must be at least 8 chars and include letters and numbers"}), 400
 
-    users = _load_users()
+    try:
+        users = _load_users()
+    except json.JSONDecodeError:
+        app.logger.exception("Failed to decode users JSON file during registration: path=%s", USERS_FILE)
+        return jsonify({
+            "message": "Registration failed due to user data file format error",
+            "error": "users_json_decode_error",
+        }), 500
+    except PermissionError:
+        app.logger.exception("Permission denied while reading users file during registration: path=%s", USERS_FILE)
+        return jsonify({
+            "message": "Registration failed due to user data access error",
+            "error": "users_file_permission_error",
+        }), 500
+    except OSError:
+        app.logger.exception("I/O error while reading users file during registration: path=%s", USERS_FILE)
+        return jsonify({
+            "message": "Registration failed due to user data storage error",
+            "error": "users_file_io_error",
+        }), 500
+
     if username in users:
         return jsonify({"message": "Username already exists"}), 400
 
@@ -534,8 +554,32 @@ def register():
         enabled=True,
         created_at=_iso_now(),
     )
-    _save_users(users)
-    _save_schedule(username, {"next_id": 1, "items": []})
+    try:
+        _save_users(users)
+        _save_schedule(username, {"next_id": 1, "items": []})
+    except PermissionError:
+        app.logger.exception(
+            "Permission denied while writing registration files: users_path=%s schedule_dir=%s username=%s",
+            USERS_FILE,
+            SCHEDULE_DIR,
+            username,
+        )
+        return jsonify({
+            "message": "Registration failed due to data directory permission error",
+            "error": "registration_storage_permission_error",
+        }), 500
+    except OSError:
+        app.logger.exception(
+            "I/O error while writing registration files: users_path=%s schedule_dir=%s username=%s",
+            USERS_FILE,
+            SCHEDULE_DIR,
+            username,
+        )
+        return jsonify({
+            "message": "Registration failed due to data storage I/O error",
+            "error": "registration_storage_io_error",
+        }), 500
+
     return jsonify({"message": "Registration successful", "username": username, "api_key": api_key}), 201
 
 
