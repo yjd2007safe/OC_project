@@ -23,6 +23,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.exceptions import BadRequest
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -496,9 +497,15 @@ def register():
     if not request.is_json:
         return jsonify({"message": "Request payload must be JSON"}), 400
 
-    payload = request.get_json(silent=True)
-    if payload is None:
+    raw_payload = request.get_data(cache=True, as_text=True)
+    if not raw_payload.strip():
         return jsonify({"message": "Request JSON body is required"}), 400
+
+    try:
+        payload = request.get_json(silent=False)
+    except BadRequest:
+        return jsonify({"message": "Request JSON body is invalid"}), 400
+
     if not isinstance(payload, dict):
         return jsonify({"message": "Invalid request payload"}), 400
     if not payload:

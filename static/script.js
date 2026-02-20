@@ -41,7 +41,8 @@ const request = async (url, options = {}) => {
   }
 
   if (!response.ok) {
-    const fallback = rawText ? `请求失败（${response.status}）` : "请求失败";
+    const statusDetail = response.statusText ? ` ${response.statusText}` : "";
+    const fallback = `请求失败（${response.status}${statusDetail}）`;
     const message = data.message || fallback;
     const error = new Error(message);
     error.status = response.status;
@@ -233,7 +234,7 @@ registerForm.addEventListener("submit", async (event) => {
     setMessage(registerMessage, `注册成功，API Key: ${data.api_key}`, false);
     registerForm.reset();
   } catch (error) {
-    setMessage(registerMessage, error.message, true);
+    setMessage(registerMessage, `注册失败：${error.message}`, true);
   }
 });
 
