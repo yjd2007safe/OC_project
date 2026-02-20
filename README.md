@@ -10,7 +10,7 @@ CalendarSecretary 是一个轻量级日程管理 Web 应用，支持 Web 登录�
 - 重复日程：支持 daily / weekly / monthly / yearly 频率
 - 重复结束方式：never / until / count
 - 工作日/休息日提醒：支持日期类型查询与创建日程提醒
-- JSON 文件存储（每个用户独立日程文件）
+- PostgreSQL/Supabase 存储（兼容本地 SQLite 开发）
 - 管理后台：用户管理、系统统计、账户启用/禁用、重置密码
 - 密码采用 PBKDF2-SHA256 哈希存储
 
@@ -19,9 +19,10 @@ CalendarSecretary 是一个轻量级日程管理 Web 应用，支持 Web 登录�
 ```
 .
 ├── app.py
-├── data
-│   ├── users.json
-│   └── schedules
+├── migrations
+│   └── schema.sql
+├── scripts
+│   └── init_db.py
 ├── static
 │   ├── script.js
 │   ├── admin.js
@@ -39,16 +40,30 @@ CalendarSecretary 是一个轻量级日程管理 Web 应用，支持 Web 登录�
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install flask
+pip install -r requirements.txt
 ```
 
-2. 启动服务：
+
+2. 配置环境变量（可复制 `.env.example`）：
+
+```bash
+cp .env.example .env
+# 至少设置 DATABASE_URL
+```
+
+3. 初始化数据库：
+
+```bash
+python scripts/init_db.py
+```
+
+4. 启动服务：
 
 ```bash
 python app.py
 ```
 
-3. 访问应用：
+5. 访问应用：
 
 - Web 页面：http://localhost:5000
 - 健康检查：http://localhost:5000/health
@@ -162,11 +177,25 @@ curl -X DELETE http://localhost:5000/api/events/1 \
   -H "X-API-Key: cs_demo_key_001"
 ```
 
-## 说明
+## 存储与部署说明
 
-- 用户信息存储在 `data/users.json`。
-- 日程数据存储在 `data/schedules/<username>.json`。
+- 用户与日程数据统一存储在数据库表 `users` / `events`。
+- 通过 `DATABASE_URL` 连接数据库；生产（Vercel）推荐使用 Supabase Postgres。
+- 当缺少数据库配置时，API 返回 JSON 错误（`503` + `database_not_configured`），不会返回 500 HTML。
+- 初始化或迁移可执行：`python scripts/init_db.py`。
 - 为兼容旧客户端，`/api/schedules` 仍可用，并与 `/api/events` 共享逻辑。
+
+### Vercel 部署（Supabase）
+
+1. 在 Supabase 创建项目并获取：`SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、Postgres `DATABASE_URL`。
+2. 在 Vercel Project Settings → Environment Variables 中配置上述变量与 `CALENDAR_SECRET_KEY`。
+3. 部署前执行一次 schema 初始化（本地或 CI）：
+
+```bash
+python scripts/init_db.py
+```
+
+4. 部署后访问 `/health` 验证实例可用。
 
 
 ## 管理员功能
