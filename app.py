@@ -23,6 +23,7 @@ from flask import (
     session,
     url_for,
 )
+from werkzeug.exceptions import BadRequest
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -193,6 +194,7 @@ def _parse_event_time(value: str) -> datetime:
 
 
 def _parse_event_or_date(value: str, is_end: bool = False) -> datetime:
+    """Parse datetime string that may omit time part (date-only)."""
     if "T" in (value or ""):
         return _parse_event_time(value)
     date_only = _parse_date(value)
@@ -495,9 +497,15 @@ def register():
     if not request.is_json:
         return jsonify({"message": "Request payload must be JSON"}), 400
 
-    payload = request.get_json(silent=True)
-    if payload is None:
+    raw_payload = request.get_data(cache=True, as_text=True)
+    if not raw_payload.strip():
         return jsonify({"message": "Request JSON body is required"}), 400
+
+    try:
+        payload = request.get_json(silent=False)
+    except BadRequest:
+        return jsonify({"message": "Request JSON body is invalid"}), 400
+
     if not isinstance(payload, dict):
         return jsonify({"message": "Invalid request payload"}), 400
     if not payload:
@@ -880,4 +888,7 @@ def health():
 
 if __name__ == "__main__":
     os.makedirs(SCHEDULE_DIR, exist_ok=True)
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    host = os.environ.get("CALENDAR_HOST", "127.0.0.1")
+    port = int(os.environ.get("CALENDAR_PORT", "5000"))
+    debug_flag = os.environ.get("FLASK_DEBUG", "false").lower() in {"1", "true", "yes"}
+    app.run(host=host, port=port, debug=debug_flag)

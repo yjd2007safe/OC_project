@@ -170,6 +170,40 @@ class TestRegistration:
         assert data["message"] == "Request JSON body is required"
 
 
+    def test_register_non_json_payload(self, client):
+        """测试非 JSON 请求体"""
+        response = client.post(
+            "/api/register",
+            data="username=testuser&password=Test1234",
+            content_type="application/x-www-form-urlencoded",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["message"] == "Request payload must be JSON"
+
+    def test_register_empty_json_body(self, client):
+        """测试空 JSON 请求体"""
+        response = client.post(
+            "/api/register",
+            data="",
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["message"] == "Request JSON body is required"
+
+    def test_register_invalid_json_body(self, client):
+        """测试无效 JSON 请求体"""
+        response = client.post(
+            "/api/register",
+            data='{"username": "testuser",',
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["message"] == "Request JSON body is invalid"
+
+
 class TestLogin:
     """用户登录接口测试"""
 
